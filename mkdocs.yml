@@ -1,0 +1,17 @@
+repo_url: https://github.com/StuHelper/stuhelper-storage-bhpan
+site_name: stuhelper-storage-bhpan
+site_description: StuHelper BHpan 存储适配
+docs_dir: docs
+site_dir: site
+theme:
+  name: material
+  language: zh
+markdown_extensions:
+  - tables
+  - fenced_code
+  - toc:
+      slugify: !!python/name:markdown.extensions.toc.slugify_unicode
+validation:
+  links:
+    not_found: warn
+    anchors: warn

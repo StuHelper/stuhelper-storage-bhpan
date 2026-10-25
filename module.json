@@ -1,0 +1,43 @@
+{
+  "id": "storage-bhpan",
+  "implementation": "library",
+  "interface_version": 1,
+  "required": [],
+  "optional": [],
+  "adapters": [
+    "bhpan"
+  ],
+  "specifications": [
+    "docs/spec/bhpan.md"
+  ],
+  "scenario_tests": {
+    "BH-01": [
+      "client_test.go#TestSSOLoginAndSessionReset"
+    ],
+    "BH-02": [
+      "client_test.go#TestLocalLoginEncryptsCredentials"
+    ],
+    "BH-03": [
+      "client_test.go#TestLoginRiskAndUntrustedRedirect",
+      "client_test.go#TestResponseBoundsAndSafeErrors",
+      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess"
+    ],
+    "BH-04": [
+      "client_test.go#TestMetadataAndFileOperations"
+    ],
+    "BH-05": [
+      "client_test.go#TestTransferCredentialsAndRedirectIsolation",
+      "client_test.go#TestOriginAndGrantValidation"
+    ],
+    "BH-06": [
+      "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
+    ],
+    "BH-07": [
+      "protocol_test.go#TestShareTokenIsolationAndCRUD",
+      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren"
+    ],
+    "BH-08": [
+      "protocol_test.go#TestOptionalTransferOperations"
+    ]
+  }
+}
