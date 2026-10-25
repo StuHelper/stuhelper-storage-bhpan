@@ -14,7 +14,7 @@ updated: 2026-10-25
 
 本地账号登录补充参考[供应商登录脚本](https://bhpan.buaa.edu.cn/oauth2/_next/static/chunks/pages/signin-c48cff0def79ace2ad81.js)。脚本提供 RSA 公钥、加密方式、CSRF 字段和登录响应约定；公钥属于协议材料。
 
-供应商没有提供本次可用的版本化 OpenAPI。私有仓库维护观测到的[接口快照](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.openapi.json)与[来源记录](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.source.json)，记录观察日期、参考提交和摘要。该快照不代表供应商完整接口，也不是平台对外 API。
+供应商没有提供本次可用的版本化 OpenAPI。本仓库维护观测到的[接口快照](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.openapi.json)与[来源记录](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.source.json)，记录观察日期、参考提交和摘要。该快照不代表供应商完整接口，也不是平台对外 API。
 
 ## 登录与会话
 
@@ -59,4 +59,4 @@ updated: 2026-10-25
 | BH-07 | 分享操作保持个人与分享会话隔离，临时 token 不进入 JSON |
 | BH-08 | 秒传、归档下载和分享历史按供应商明确结果返回 |
 
-场景与真实测试函数登记在私有 `module.json` 的 `scenario_tests`，由本仓检查验证。真实账号结果、服务端装配和部署状态见[实施状态](../development/bhpan.md)。
+场景与真实测试函数登记在 `module.json` 的 `scenario_tests`，由本仓检查验证。真实账号结果、服务端装配和部署状态见[实施状态](../development/bhpan.md)。

@@ -12,7 +12,7 @@ updated: 2026-10-25
 
 ## 服务端调用
 
-拉取源码需要本私有仓库的 GitHub 读取权限，并在构建环境的 `GOPRIVATE` 中覆盖 `github.com/StuHelper/stuhelper-storage-bhpan`。使用已有 Git 凭据配置，凭据不进入 go.mod。
+本仓库公开提供源码，拉取本模块不需要 GitHub 登录或专用 `GOPRIVATE` 配置。实际访问网盘仍需由调用方提供获授权的账号，凭据不进入 go.mod。
 
 BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已验证版本或提交，构建时设置 `GOWORK=off`。本地可以通过 go.work 引入任务工作树，正式依赖不保存本机 replace 路径。
 

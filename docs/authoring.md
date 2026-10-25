@@ -6,7 +6,7 @@ updated: 2026-10-25
 
 # 文档写作与维护
 
-本仓库使用 design、spec、development、guide、adr 五类文档。分类、状态、模板和检查遵循[公共文档约定](https://github.com/StuHelper/stuhelper-next/blob/develop/docs/authoring.md)。私有技术方案保存在本仓库，公共文档通过链接引用。
+本仓库使用 design、spec、development、guide、adr 五类文档。分类、状态、模板和检查遵循[公共文档约定](https://github.com/StuHelper/stuhelper-next/blob/develop/docs/authoring.md)。本仓库维护可公开的存储协议和接入说明，真实配置、凭据与个人数据保存在获准的运行环境。
 
 文档直接描述当前行为、实现与剩余任务。规则变化时替换原文并修复引用，历史内容由 Git 保存。用自然、具体的中文说明对象、条件、动作和结果，长期文档使用相关写作技能。
 

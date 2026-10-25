@@ -8,7 +8,7 @@ updated: 2026-10-25
 
 ## 当前交付
 
-stuhelper-storage-bhpan 提供独立 Go 存储适配库、观测接口快照、来源摘要、场景清单和标准输入验证程序。CI 的 `BHpan checks` 执行依赖边界、文档、协议、Go race、vet 与独立构建。
+stuhelper-storage-bhpan 以 AGPL-3.0-only 公开提供独立 Go 存储适配库、观测接口快照、来源摘要、场景清单和标准输入验证程序。CI 的 `BHpan checks` 执行依赖边界、文档、协议、Go race、vet 与独立构建。
 
 实现范围为 SSO 与网盘本地账号登录、文档库与容量、文件及回收站、普通与分片上传、下载、秒传、归档下载和分享。旧项目只作为接口线索；实现、错误处理、会话隔离和测试均为本次编写。
 
