@@ -1,0 +1,2121 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BHpan observed provider API",
+    "version": "0.1.0",
+    "description": "Private observed protocol contract; not a provider-issued specification or a StuHelper HTTP service."
+  },
+  "servers": [
+    {
+      "url": "https://bhpan.buaa.edu.cn"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "paths": {
+    "/api/efast/v1/owned-doc-lib": {
+      "get": {
+        "operationId": "Libraries",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Library"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/api/efast/v1/quota/user": {
+      "get": {
+        "operationId": "Quota",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quota"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/list": {
+      "post": {
+        "operationId": "List",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Directory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "sort": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "by",
+                  "sort"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/size": {
+      "post": {
+        "operationId": "DirectorySize",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Size"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "onlyrecycle": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "onlyrecycle"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/getsuggestname": {
+      "post": {
+        "operationId": "SuggestedName",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/create": {
+      "post": {
+        "operationId": "CreateDirectory",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/rename": {
+      "post": {
+        "operationId": "Rename",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/copy": {
+      "post": {
+        "operationId": "Copy",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "destparent": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "destparent",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/dir/move": {
+      "post": {
+        "operationId": "Move",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "destparent": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "destparent",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/delete": {
+      "post": {
+        "operationId": "Delete",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/recycle/restore": {
+      "post": {
+        "operationId": "Restore",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/recycle/delete": {
+      "post": {
+        "operationId": "Purge",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/recycle/list": {
+      "post": {
+        "operationId": "RecycleBin",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Directory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "sort": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "by",
+                  "sort",
+                  "start",
+                  "limit"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osbeginupload": {
+      "post": {
+        "operationId": "BeginUpload",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  },
+                  "client_mtime": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name",
+                  "length",
+                  "ondup",
+                  "client_mtime"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osendupload": {
+      "post": {
+        "operationId": "FinishUpload",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "rev"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osinitmultiupload": {
+      "post": {
+        "operationId": "BeginMultipart",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Multipart"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name",
+                  "length",
+                  "ondup"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osuploadpart": {
+      "post": {
+        "operationId": "PartGrants",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authrequests": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "authrequests"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "type": "string"
+                  },
+                  "uploadid": {
+                    "type": "string"
+                  },
+                  "parts": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "rev",
+                  "uploadid",
+                  "parts"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osdownload": {
+      "post": {
+        "operationId": "Download",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authrequest": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "authrequest"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "authtype": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "authtype"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/predupload": {
+      "post": {
+        "operationId": "FastUploadAvailable",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "match": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "match"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "length": {
+                    "type": "integer"
+                  },
+                  "slice_md5": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "length",
+                  "slice_md5"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/dupload": {
+      "post": {
+        "operationId": "FastUpload",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "md5": {
+                    "type": "string"
+                  },
+                  "crc32": {
+                    "type": "string"
+                  },
+                  "ondup": {
+                    "type": "integer"
+                  },
+                  "client_mtime": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "docid",
+                  "name",
+                  "length",
+                  "md5",
+                  "crc32",
+                  "ondup",
+                  "client_mtime"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/osoption": {
+      "post": {
+        "operationId": "MultipartOptions",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Options"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/oscompleteupload": {
+      "post": {
+        "operationId": "CompleteMultipart",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "multipart/mixed": {
+                "schema": {
+                  "type": "string",
+                  "description": "JSON authrequest and XML completion payload; forward XML unchanged to the signed object URL before osendupload."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docid": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "type": "string"
+                  },
+                  "uploadid": {
+                    "type": "string"
+                  },
+                  "partinfo": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "integer"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "docid",
+                  "rev",
+                  "uploadid",
+                  "partinfo"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efast/v1/file/batchdownload": {
+      "post": {
+        "operationId": "DownloadArchive",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "reqhost": {
+                    "type": "string"
+                  },
+                  "dirs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "reqhost",
+                  "dirs",
+                  "files"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shared-link/v1/document/anonymous": {
+      "post": {
+        "operationId": "CreateShare",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "201": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Share"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shared-link/v1/document/anonymous/{shareID}": {
+      "put": {
+        "operationId": "UpdateShare",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "204": {
+            "description": "Provider success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Share"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shareID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "DeleteShare",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "204": {
+            "description": "Provider success"
+          }
+        },
+        "parameters": [
+          {
+            "name": "shareID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/shared-link/v1/document/folder/{documentID}": {
+      "get": {
+        "operationId": "Shares",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Share"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "documentID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "anonymous"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/doc-share/v1/docs-shared-with-anyone": {
+      "get": {
+        "operationId": "ShareHistory",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "doc": {
+                            "$ref": "#/components/schemas/ShareItem"
+                          },
+                          "link_configs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        },
+                        "required": [
+                          "doc",
+                          "link_configs"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "entries"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/api/shared-link/v1/links/{shareID}": {
+      "get": {
+        "operationId": "ShareInfo",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "password_required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "password_required"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "shareID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/link": {
+      "post": {
+        "operationId": "ShareToken",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "password_required": {
+                    "type": "boolean"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "password_required",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/link/{shareID}": {
+      "get": {
+        "operationId": "UnprotectedShareToken",
+        "responses": {
+          "200": {
+            "description": "Provider success"
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "shareID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/efast/v1/entry-item": {
+      "get": {
+        "operationId": "SharedEntry",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/oauth2/signin": {
+      "post": {
+        "operationId": "LocalLogin",
+        "responses": {
+          "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redirect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "redirect"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "_csrf": {
+                    "type": "string"
+                  },
+                  "challenge": {
+                    "type": "string"
+                  },
+                  "account": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "byte",
+                    "writeOnly": true
+                  },
+                  "remember": {
+                    "type": "boolean"
+                  },
+                  "device": {
+                    "type": "object"
+                  },
+                  "vcode": {
+                    "type": "object"
+                  },
+                  "dualfactorauthinfo": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "_csrf",
+                  "challenge",
+                  "account",
+                  "password",
+                  "remember",
+                  "device",
+                  "vcode",
+                  "dualfactorauthinfo"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Library": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "Quota": {
+        "type": "object",
+        "properties": {
+          "allocated": {
+            "type": "integer"
+          },
+          "used": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "allocated",
+          "used"
+        ]
+      },
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "docid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "create_time": {
+            "type": "integer"
+          },
+          "modified": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "docid",
+          "name",
+          "size"
+        ]
+      },
+      "Directory": {
+        "type": "object",
+        "properties": {
+          "dirs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          }
+        },
+        "required": [
+          "dirs",
+          "files"
+        ]
+      },
+      "Size": {
+        "type": "object",
+        "properties": {
+          "totalsize": {
+            "type": "integer"
+          },
+          "dirnum": {
+            "type": "integer"
+          },
+          "filenum": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "totalsize",
+          "dirnum",
+          "filenum"
+        ]
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "docid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docid"
+        ]
+      },
+      "Upload": {
+        "type": "object",
+        "properties": {
+          "docid": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          },
+          "authrequest": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "docid",
+          "rev",
+          "authrequest"
+        ]
+      },
+      "Multipart": {
+        "type": "object",
+        "properties": {
+          "docid": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          },
+          "uploadid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docid",
+          "rev",
+          "uploadid"
+        ]
+      },
+      "Options": {
+        "type": "object",
+        "properties": {
+          "partminsize": {
+            "type": "integer"
+          },
+          "partmaxsize": {
+            "type": "integer"
+          },
+          "partmaxnum": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partminsize",
+          "partmaxsize",
+          "partmaxnum"
+        ]
+      },
+      "ShareItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "file",
+              "folder"
+            ]
+          },
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "allow"
+        ]
+      },
+      "Share": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "limited_times": {
+            "type": "integer"
+          },
+          "item": {
+            "$ref": "#/components/schemas/ShareItem"
+          }
+        },
+        "required": [
+          "title",
+          "expires_at",
+          "password",
+          "limited_times",
+          "item"
+        ]
+      }
+    }
+  }
+}
