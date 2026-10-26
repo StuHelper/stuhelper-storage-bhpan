@@ -6,6 +6,7 @@ import (
 )
 
 type Library struct {
+	Type     string `json:"type,omitempty"`
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Revision string `json:"rev"`
@@ -23,11 +24,13 @@ func (q Quota) Available() int64 {
 }
 
 type Entry struct {
-	ID       string `json:"docid"`
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	Created  int64  `json:"create_time"`
-	Modified int64  `json:"modified"`
+	Revision     string `json:"rev,omitempty"`
+	OriginalPath string `json:"path,omitempty"`
+	ID           string `json:"docid"`
+	Name         string `json:"name"`
+	Size         int64  `json:"size"`
+	Created      int64  `json:"create_time"`
+	Modified     int64  `json:"modified"`
 }
 type Directory struct {
 	Directories []Entry `json:"dirs"`

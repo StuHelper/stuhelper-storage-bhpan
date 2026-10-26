@@ -38,6 +38,12 @@
     ],
     "BH-08": [
       "protocol_test.go#TestOptionalTransferOperations"
+    ],
+    "BH-09": [
+      "identity_test.go#TestStableIdentityAndMalformedProfile"
+    ],
+    "BH-10": [
+      "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
     ]
   }
 }
