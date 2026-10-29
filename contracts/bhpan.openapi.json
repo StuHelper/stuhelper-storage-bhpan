@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BHpan observed provider API",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Private observed protocol contract; not a provider-issued specification or a StuHelper HTTP service."
   },
   "servers": [
@@ -1356,21 +1356,6 @@
               }
             }
           },
-          "400": {
-            "description": "Request rejected"
-          },
-          "401": {
-            "description": "Session expired"
-          },
-          "403": {
-            "description": "Permission or operation denied"
-          },
-          "404": {
-            "description": "Item missing"
-          },
-          "429": {
-            "description": "Rate limited"
-          },
           "201": {
             "description": "Provider success",
             "content": {
@@ -1388,6 +1373,21 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Request rejected"
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission or operation denied"
+          },
+          "404": {
+            "description": "Item missing"
+          },
+          "429": {
+            "description": "Rate limited"
           }
         },
         "requestBody": {
@@ -1409,6 +1409,9 @@
           "200": {
             "description": "Provider success"
           },
+          "204": {
+            "description": "Provider success"
+          },
           "400": {
             "description": "Request rejected"
           },
@@ -1423,9 +1426,6 @@
           },
           "429": {
             "description": "Rate limited"
-          },
-          "204": {
-            "description": "Provider success"
           }
         },
         "requestBody": {
@@ -1455,6 +1455,9 @@
           "200": {
             "description": "Provider success"
           },
+          "204": {
+            "description": "Provider success"
+          },
           "400": {
             "description": "Request rejected"
           },
@@ -1469,9 +1472,6 @@
           },
           "429": {
             "description": "Rate limited"
-          },
-          "204": {
-            "description": "Provider success"
           }
         },
         "parameters": [
@@ -1881,6 +1881,151 @@
           }
         }
       }
+    },
+    "/api/eacp/v1/user/get": {
+      "post": {
+        "operationId": "currentUser",
+        "summary": "Read authenticated user identity",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current user account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "userid"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "user"
+                      ]
+                    },
+                    "userid": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/api/efast/v2/items/{object_id}/all": {
+      "get": {
+        "operationId": "fileInfo",
+        "summary": "Resolve stable file identity to its current provider location",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File metadata including live or recycled location",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "object_id",
+                    "doc_id",
+                    "name",
+                    "rev",
+                    "size",
+                    "type",
+                    "doc_lib"
+                  ],
+                  "properties": {
+                    "object_id": {
+                      "type": "string"
+                    },
+                    "doc_id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer",
+                      "format": "int64",
+                      "minimum": 0
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "file"
+                      ]
+                    },
+                    "doc_lib": {
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session expired"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "404": {
+            "description": "Object missing"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1901,6 +2046,9 @@
             "type": "string"
           },
           "rev": {
+            "type": "string"
+          },
+          "type": {
             "type": "string"
           }
         },
@@ -1940,6 +2088,13 @@
           },
           "modified": {
             "type": "integer"
+          },
+          "rev": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "Original location for recycled entries"
           }
         },
         "required": [

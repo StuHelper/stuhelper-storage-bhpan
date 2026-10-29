@@ -1,6 +1,6 @@
 {
-  "contract_version": "0.1.0",
-  "observed_at": "2026-10-25",
+  "contract_version": "0.2.0",
+  "observed_at": "2026-10-26",
   "provider_version": "not-published",
   "reference_repository": "StuHelper/StuHelper",
   "reference_revision": "4c6d67a2fb8184e935d0aad9e33ce5c18fea6ac3",
@@ -8,5 +8,6 @@
   "reuse": "protocol-only; no source or fixtures imported",
   "signin_asset": "https://bhpan.buaa.edu.cn/oauth2/_next/static/chunks/pages/signin-c48cff0def79ace2ad81.js",
   "signin_asset_sha256": "0f47a44f0e0e4b6c8c4b18da3c583ef1b37296b3872803da14dc796d344750a8",
-  "contract_sha256": "9bf5f27b1c19bc357514c0c521ee2938c550728f39c59157b44d8b14778acea5"
+  "contract_sha256": "c0d26e896dfdfbb8f8a1c1549142155ce7712fd266a303f8f16b183928ac9617",
+  "user_identity_reference": "https://developers.aishutech.com/napi/documents/307"
 }

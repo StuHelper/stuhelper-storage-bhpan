@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/StuHelper/stuhelper-storage-bhpan"
@@ -51,10 +52,20 @@ func main() {
 		a = account{}
 		result := map[string]any{"account": i + 1, "login": err == nil}
 		if err == nil {
+			identity, e := c.Identity(ctx)
+			err = e
+			result["identity_valid"] = e == nil && identity.ID != ""
+		}
+		if err == nil {
 			var libs []bhpan.Library
 			libs, err = c.Libraries(ctx)
 			if err == nil {
 				result["libraries"] = len(libs)
+				for _, lib := range libs {
+					if lib.Type == "user_doc_lib" {
+						result["personal_library_type"] = true
+					}
+				}
 			}
 			if err == nil {
 				q, e := c.Quota(ctx)
@@ -168,6 +179,15 @@ func files(ctx context.Context, c *bhpan.Client, root string, in input, result m
 	if err != nil {
 		return err
 	}
+	stableID := moved[strings.LastIndex(moved, "/")+1:]
+	metadata, err := c.FileInfo(ctx, stableID)
+	if err != nil {
+		return err
+	}
+	if metadata.DocumentID != recycleID {
+		return errors.New("probe: recycle identity mismatch")
+	}
+	result["recycle_object_id_preserved"] = true
 	restored, err := c.Restore(ctx, recycleID)
 	if err != nil {
 		return err
@@ -185,6 +205,10 @@ func files(ctx context.Context, c *bhpan.Client, root string, in input, result m
 	if err = c.Purge(ctx, recycleID); err != nil {
 		return err
 	}
+	if _, err = c.FileInfo(ctx, stableID); !errors.Is(err, bhpan.ErrNotFound) {
+		return errors.New("probe: permanent absence not verified")
+	}
+	result["permanent_absence_verified"] = true
 	result["file_lifecycle"] = true
 	if in.Multipart {
 		if err = multi(ctx, c, dir, nonce); err != nil {
