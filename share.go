@@ -30,6 +30,7 @@ type SharedEntry struct {
 	ID, Name string
 	Size     int64
 	token    string
+	jar      http.CookieJar
 }
 
 func (s Share) valid() bool {
@@ -162,15 +163,15 @@ func (c *Client) ResolveShare(ctx context.Context, id, password string) (SharedE
 			return SharedEntry{}, ErrProtocol
 		}
 	}
-	return SharedEntry{entries[0].ID, entries[0].Name, size, token}, nil
+	return SharedEntry{ID: entries[0].ID, Name: entries[0].Name, Size: size, token: token, jar: jar}, nil
 }
 func (c *Client) DownloadShared(ctx context.Context, e SharedEntry, dst io.Writer) (int64, error) {
 	if !textOK(e.token) {
 		return 0, ErrSession
 	}
-	return c.download(ctx, e.ID, e.token, dst)
+	return c.download(ctx, e.ID, e.token, e.jar, dst)
 }
 
-func (c *Client) anonymousClient() *http.Client {
-	return &http.Client{Transport: c.transport, Timeout: c.timeout}
+func (c *Client) anonymousClient(jar http.CookieJar) *http.Client {
+	return &http.Client{Transport: c.transport, Timeout: c.timeout, Jar: jar}
 }

@@ -141,9 +141,14 @@ func TestShareTokenIsolationAndCRUD(t *testing.T) {
 			if r.Header.Get("Authorization") != "Bearer share+token" || r.Header.Get("Cookie") != "INGRESSCOOKIE=share-affinity" {
 				t.Error("share token isolation")
 			}
-			reply(w, []any{map[string]any{"id": "file", "name": "shared.bin", "size": 4}})
+			reply(w, []any{map[string]any{"id": "root", "name": "Shared"}})
+		case "/api/efast/v1/dir/list":
+			if r.Header.Get("Authorization") != "Bearer share+token" || r.Header.Get("Cookie") != "INGRESSCOOKIE=share-affinity" {
+				t.Error("share list routing or authority lost")
+			}
+			reply(w, map[string]any{"dirs": []any{map[string]any{"docid": "child", "name": "child", "size": -1}}, "files": []any{map[string]any{"docid": "file", "name": "shared.bin", "size": 4}}})
 		case "/api/efast/v1/file/osdownload":
-			if r.Header.Get("Authorization") != "Bearer share+token" {
+			if r.Header.Get("Authorization") != "Bearer share+token" || r.Header.Get("Cookie") != "INGRESSCOOKIE=share-affinity" {
 				t.Error("wrong token")
 			}
 			reply(w, map[string]any{"authrequest": []string{"GET", base + "/object"}})
@@ -173,8 +178,12 @@ func TestShareTokenIsolationAndCRUD(t *testing.T) {
 	if bytes.Contains(raw, []byte("share+token")) {
 		t.Fatal("share authority serialized")
 	}
+	listing, e := c.ListShared(ctx, entry)
+	check(t, e)
+	nested, e := c.ListShared(ctx, listing.Directories[0])
+	check(t, e)
 	var dst bytes.Buffer
-	_, e = c.DownloadShared(ctx, entry, &dst)
+	_, e = c.DownloadShared(ctx, nested.Files[0], &dst)
 	check(t, e)
 	if dst.String() != "test" {
 		t.Fatal("share download")

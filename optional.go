@@ -137,16 +137,16 @@ func (c *Client) ListShared(ctx context.Context, entry SharedEntry) (SharedDirec
 		return SharedDirectory{}, ErrInput
 	}
 	var out Directory
-	err := c.json(ctx, c.anonymousClient(), entry.token, "share-list", "POST", "/api/efast/v1/dir/list", map[string]any{"docid": entry.ID, "by": "name", "sort": "asc"}, &out)
+	err := c.json(ctx, c.anonymousClient(entry.jar), entry.token, "share-list", "POST", "/api/efast/v1/dir/list", map[string]any{"docid": entry.ID, "by": "name", "sort": "asc"}, &out)
 	if err != nil {
 		return SharedDirectory{}, err
 	}
 	result := SharedDirectory{Directories: []SharedEntry{}, Files: []SharedEntry{}}
 	for _, item := range out.Directories {
-		result.Directories = append(result.Directories, SharedEntry{ID: item.ID, Name: item.Name, Size: -1, token: entry.token})
+		result.Directories = append(result.Directories, SharedEntry{ID: item.ID, Name: item.Name, Size: -1, token: entry.token, jar: entry.jar})
 	}
 	for _, item := range out.Files {
-		result.Files = append(result.Files, SharedEntry{ID: item.ID, Name: item.Name, Size: item.Size, token: entry.token})
+		result.Files = append(result.Files, SharedEntry{ID: item.ID, Name: item.Name, Size: item.Size, token: entry.token, jar: entry.jar})
 	}
 	return result, nil
 }

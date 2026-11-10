@@ -135,7 +135,19 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 	if src == nil || length < 0 || length == int64(^uint64(0)>>1) || g.method != "PUT" {
 		return "", ErrInput
 	}
-	resp, e := c.data(ctx, g, io.LimitReader(src, length+1), length)
+	var body io.Reader = io.LimitReader(src, length+1)
+	if length == 0 {
+		var probe [1]byte
+		n, err := io.ReadFull(src, probe[:])
+		if n != 0 {
+			return "", ErrInput
+		}
+		if err != io.EOF {
+			return "", err
+		}
+		body = http.NoBody
+	}
+	resp, e := c.data(ctx, g, body, length)
 	if e != nil {
 		return "", e
 	}
@@ -313,9 +325,9 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	return c.FinishUpload(ctx, u.DocumentID, u.Revision)
 }
 func (c *Client) Download(ctx context.Context, id string, dst io.Writer) (int64, error) {
-	return c.download(ctx, id, "", dst)
+	return c.download(ctx, id, "", nil, dst)
 }
-func (c *Client) download(ctx context.Context, id, token string, dst io.Writer) (int64, error) {
+func (c *Client) download(ctx context.Context, id, token string, jar http.CookieJar, dst io.Writer) (int64, error) {
 	if !textOK(id) || dst == nil {
 		return 0, ErrInput
 	}
@@ -327,7 +339,7 @@ func (c *Client) download(ctx context.Context, id, token string, dst io.Writer) 
 	if token == "" {
 		err = c.api(ctx, "download", "POST", "/api/efast/v1/file/osdownload", in, &out)
 	} else {
-		hc := &http.Client{Transport: c.transport, Timeout: c.timeout}
+		hc := c.anonymousClient(jar)
 		err = c.json(ctx, hc, token, "share-download", "POST", "/api/efast/v1/file/osdownload", in, &out)
 	}
 	if err != nil {

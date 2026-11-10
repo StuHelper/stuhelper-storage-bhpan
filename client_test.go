@@ -390,3 +390,36 @@ func TestMalformedMetadataNeverBecomesEmptySuccess(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyUploadUsesExplicitLengthAndRejectsData(t *testing.T) {
+	var base string
+	var writes atomic.Int32
+	c, server := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/efast/v1/file/osbeginupload":
+			reply(w, map[string]any{"docid": "empty", "rev": "rev", "authrequest": []string{"PUT", base + "/object", "Authorization: signed", "X-Amz-Date: date", "Content-Type: application/octet-stream"}})
+		case "/object":
+			writes.Add(1)
+			body, err := io.ReadAll(r.Body)
+			if err != nil || len(body) != 0 || r.ContentLength != 0 || len(r.TransferEncoding) != 0 || r.Header.Get("Content-Length") != "0" {
+				t.Errorf("empty upload framing: length=%d transfer=%v body=%q err=%v", r.ContentLength, r.TransferEncoding, body, err)
+			}
+			w.Header().Set("ETag", `"empty"`)
+		default:
+			t.Error("unexpected request")
+		}
+	})
+	base = server.URL
+	c.token = "account-token"
+	upload, err := c.BeginUpload(context.Background(), "root", "empty.bin", 0)
+	check(t, err)
+	_, err = c.WriteUpload(context.Background(), upload, strings.NewReader(""))
+	check(t, err)
+	if writes.Load() != 1 {
+		t.Fatal(writes.Load())
+	}
+	_, err = c.WriteUpload(context.Background(), upload, strings.NewReader("x"))
+	if !errors.Is(err, ErrInput) || writes.Load() != 1 {
+		t.Fatal("nonempty source reached object store", err, writes.Load())
+	}
+}
