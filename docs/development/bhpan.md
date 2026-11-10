@@ -1,7 +1,7 @@
 ---
 type: development
 status: Accepted
-updated: 2026-10-26
+updated: 2026-11-10
 ---
 
 # BHpan 实施状态

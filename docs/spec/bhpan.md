@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-10-26
+updated: 2026-11-10
 ---
 
 # BHpan 适配接口
