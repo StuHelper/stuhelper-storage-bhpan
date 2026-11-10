@@ -27,7 +27,8 @@
     ],
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
-      "client_test.go#TestOriginAndGrantValidation"
+      "client_test.go#TestOriginAndGrantValidation",
+      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData"
     ],
     "BH-06": [
       "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
