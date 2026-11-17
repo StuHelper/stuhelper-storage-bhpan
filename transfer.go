@@ -79,7 +79,7 @@ func (c *Client) decodeGrant(raw []string, method string) (grant, error) {
 	}
 	return g, nil
 }
-func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64) (*http.Response, error) {
+func (c *Client) data(ctx context.Context, op string, g grant, body io.Reader, length int64) (*http.Response, error) {
 	if !g.deadline.After(time.Now()) {
 		return nil, ErrSession
 	}
@@ -100,11 +100,12 @@ func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, &Error{"transfer", 0, ErrUnavailable}
+		return nil, &Error{Operation: op, Status: 0, Kind: ErrUnavailable}
 	}
-	if e = statusError("transfer", resp.StatusCode); e != nil {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errBody, _ := limitedRead(resp.Body)
 		resp.Body.Close()
-		return nil, e
+		return nil, responseError(op, resp.StatusCode, resp.Header, errBody)
 	}
 	return resp, nil
 }
@@ -129,9 +130,9 @@ func (c *Client) BeginUpload(ctx context.Context, parent, name string, length in
 	return state, err
 }
 func (c *Client) WriteUpload(ctx context.Context, u Upload, src io.Reader) (string, error) {
-	return c.write(ctx, u.grant, src, u.length)
+	return c.write(ctx, "upload-write", u.grant, src, u.length)
 }
-func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64) (string, error) {
+func (c *Client) write(ctx context.Context, op string, g grant, src io.Reader, length int64) (string, error) {
 	if src == nil || length < 0 || length == int64(^uint64(0)>>1) || g.method != "PUT" {
 		return "", ErrInput
 	}
@@ -147,7 +148,7 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 		}
 		body = http.NoBody
 	}
-	resp, e := c.data(ctx, g, body, length)
+	resp, e := c.data(ctx, op, g, body, length)
 	if e != nil {
 		return "", e
 	}
@@ -226,7 +227,7 @@ func (c *Client) WritePart(ctx context.Context, g PartGrant, src io.Reader, leng
 	if length <= 0 || g.number < 1 {
 		return Part{}, ErrInput
 	}
-	etag, err := c.write(ctx, g.grant, src, length)
+	etag, err := c.write(ctx, "part-write", g.grant, src, length)
 	if err == nil && !textOK(etag) {
 		err = ErrProtocol
 	}
@@ -261,7 +262,7 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	if err != nil {
 		return err
 	}
-	if err = statusError("multipart-prepare", status); err != nil {
+	if err = responseError("multipart-prepare", status, headers, raw); err != nil {
 		return err
 	}
 	kind, params, err := mime.ParseMediaType(headers.Get("Content-Type"))
@@ -309,7 +310,7 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	if err != nil {
 		return err
 	}
-	resp, err := c.data(ctx, g, bytes.NewReader(payload), int64(len(payload)))
+	resp, err := c.data(ctx, "multipart-complete", g, bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
 		return err
 	}
@@ -349,7 +350,7 @@ func (c *Client) download(ctx context.Context, id, token string, jar http.Cookie
 	if err != nil {
 		return 0, err
 	}
-	resp, err := c.data(ctx, g, nil, 0)
+	resp, err := c.data(ctx, "download-data", g, nil, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -359,7 +360,7 @@ func (c *Client) download(ctx context.Context, id, token string, jar http.Cookie
 		if ctx.Err() != nil {
 			return n, ctx.Err()
 		}
-		return n, &Error{"download-body", resp.StatusCode, ErrUnavailable}
+		return n, &Error{Operation: "download-body", Status: resp.StatusCode, Kind: ErrUnavailable}
 	}
 	return n, nil
 }

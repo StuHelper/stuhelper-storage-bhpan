@@ -45,6 +45,9 @@
     ],
     "BH-10": [
       "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
+    ],
+    "BH-13": [
+      "errors_test.go#TestErrorProviderCodeRetryAfterAndOperations"
     ]
   }
 }

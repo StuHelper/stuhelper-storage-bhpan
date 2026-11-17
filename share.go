@@ -132,13 +132,13 @@ func (c *Client) ResolveShare(ctx context.Context, id, password string) (SharedE
 		encoded, _ := json.Marshal(map[string]any{"id": id, "type": "anonymous", "password_required": true, "password": password})
 		method, path, body = "POST", "/link", bytes.NewReader(encoded)
 	}
-	_, headers, _, status, err := request(ctx, hc, "share-token", method, c.cloud+path, "application/json", "", body)
+	tokenBody, headers, _, status, err := request(ctx, hc, "share-token", method, c.cloud+path, "application/json", "", body)
 	if err != nil {
 		return SharedEntry{}, err
 	}
 	capture(headers)
 	if !(status >= 300 && status < 400 && token != "") {
-		if err = statusError("share-token", status); err != nil {
+		if err = responseError("share-token", status, headers, tokenBody); err != nil {
 			return SharedEntry{}, err
 		}
 	}

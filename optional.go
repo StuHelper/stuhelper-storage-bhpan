@@ -81,7 +81,7 @@ func (c *Client) DownloadArchive(ctx context.Context, name string, directories, 
 	if err != nil {
 		return 0, err
 	}
-	resp, err := c.data(ctx, g, nil, 0)
+	resp, err := c.data(ctx, "archive-data", g, nil, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -91,7 +91,7 @@ func (c *Client) DownloadArchive(ctx context.Context, name string, directories, 
 		if ctx.Err() != nil {
 			return n, ctx.Err()
 		}
-		return n, &Error{"archive-body", resp.StatusCode, ErrUnavailable}
+		return n, &Error{Operation: "archive-body", Status: resp.StatusCode, Kind: ErrUnavailable}
 	}
 	return n, nil
 }
