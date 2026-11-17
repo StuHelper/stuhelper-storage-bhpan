@@ -34,10 +34,21 @@ type Part struct {
 	ETag   string
 	Size   int64
 }
+type UploadResult struct {
+	DocumentID string `json:"docid"`
+	Revision   string `json:"rev"`
+}
 type PartGrant struct {
 	grant  grant
 	number int
 }
+
+// Number returns the 1-based part number authorized by this grant.
+func (g PartGrant) Number() int { return g.number }
+
+// Deadline returns the local expiration upper bound for this part grant.
+func (g PartGrant) Deadline() time.Time { return g.grant.deadline }
+
 type MultipartOptions struct {
 	MinimumSize  int64 `json:"partminsize"`
 	MaximumSize  int64 `json:"partmaxsize"`
@@ -162,10 +173,75 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 	return etag, nil
 }
 func (c *Client) FinishUpload(ctx context.Context, id, revision string) error {
+	_, err := c.FinishUploadResult(ctx, id, revision)
+	return err
+}
+
+// FinishUploadResult finalizes an uploaded object and returns the confirmed
+// document identifier and revision. When the provider replies with an empty
+// 204/200 acknowledgement, the validated request identifiers are returned.
+func (c *Client) FinishUploadResult(ctx context.Context, id, revision string) (UploadResult, error) {
 	if !textOK(id) || !textOK(revision) {
-		return ErrInput
+		return UploadResult{}, ErrInput
 	}
-	return c.api(ctx, "upload-finish", "POST", "/api/efast/v1/file/osendupload", map[string]any{"docid": id, "rev": revision}, nil)
+	encoded, err := json.Marshal(map[string]any{"docid": id, "rev": revision})
+	if err != nil {
+		return UploadResult{}, ErrInput
+	}
+	c.mu.RLock()
+	token := c.token
+	if token == "" {
+		c.mu.RUnlock()
+		return UploadResult{}, &Error{"upload-finish", 0, ErrSession}
+	}
+	hc := *c.client
+	c.mu.RUnlock()
+	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	b, _, _, status, err := request(ctx, &hc, "upload-finish", "POST", c.cloud+"/api/efast/v1/file/osendupload", "application/json", token, bytes.NewReader(encoded))
+	if err != nil {
+		return UploadResult{}, err
+	}
+	if err = statusError("upload-finish", status); err != nil {
+		return UploadResult{}, err
+	}
+	res := UploadResult{DocumentID: id, Revision: revision}
+	trimmed := bytes.TrimSpace(b)
+	if len(trimmed) == 0 {
+		return res, nil
+	}
+	if !json.Valid(trimmed) || bytes.Equal(trimmed, []byte("false")) || bytes.Equal(trimmed, []byte("null")) {
+		return UploadResult{}, &Error{"upload-finish", status, ErrProtocol}
+	}
+	var envelope map[string]json.RawMessage
+	if json.Unmarshal(trimmed, &envelope) != nil {
+		return UploadResult{}, &Error{"upload-finish", status, ErrProtocol}
+	}
+	for _, key := range []string{"code", "error_code", "error"} {
+		value := bytes.TrimSpace(envelope[key])
+		if len(value) > 0 && !bytes.Equal(value, []byte("0")) && !bytes.Equal(value, []byte("null")) && !bytes.Equal(value, []byte(`""`)) {
+			return UploadResult{}, &Error{"upload-finish", status, ErrRejected}
+		}
+	}
+	var wire struct {
+		ID  *string `json:"docid"`
+		Rev *string `json:"rev"`
+	}
+	if json.Unmarshal(trimmed, &wire) != nil {
+		return UploadResult{}, &Error{"upload-finish", status, ErrProtocol}
+	}
+	if wire.ID != nil {
+		if !textOK(*wire.ID) {
+			return UploadResult{}, &Error{"upload-finish", status, ErrProtocol}
+		}
+		res.DocumentID = *wire.ID
+	}
+	if wire.Rev != nil {
+		if !textOK(*wire.Rev) {
+			return UploadResult{}, &Error{"upload-finish", status, ErrProtocol}
+		}
+		res.Revision = *wire.Rev
+	}
+	return res, nil
 }
 func (c *Client) MultipartOptions(ctx context.Context) (MultipartOptions, error) {
 	var out MultipartOptions
@@ -236,13 +312,20 @@ func (c *Client) WritePart(ctx context.Context, g PartGrant, src io.Reader, leng
 // CompleteMultipart commits object-store parts, then finalizes the file. The
 // metadata finalize request is never issued if the object store fails.
 func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts []Part) error {
+	_, err := c.CompleteMultipartResult(ctx, u, parts)
+	return err
+}
+
+// CompleteMultipartResult commits object-store parts, finalizes the file, and
+// returns the confirmed document identifier and revision.
+func (c *Client) CompleteMultipartResult(ctx context.Context, u MultipartUpload, parts []Part) (UploadResult, error) {
 	if !u.valid() || len(parts) == 0 || len(parts) > 10000 {
-		return ErrInput
+		return UploadResult{}, ErrInput
 	}
 	info := map[string]any{}
 	for i, p := range parts {
 		if p.Number != i+1 || p.Size <= 0 || !textOK(p.ETag) || strings.ContainsRune(p.ETag, '"') {
-			return ErrInput
+			return UploadResult{}, ErrInput
 		}
 		info[strconv.Itoa(p.Number)] = []any{p.ETag, p.Size}
 	}
@@ -252,21 +335,21 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	c.mu.RLock()
 	if c.token == "" {
 		c.mu.RUnlock()
-		return ErrSession
+		return UploadResult{}, ErrSession
 	}
 	hc := *c.client
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	raw, headers, _, status, err := request(ctx, &hc, "multipart-prepare", "POST", c.cloud+"/api/efast/v1/file/oscompleteupload", "application/json", c.token, bytes.NewReader(encoded))
 	c.mu.RUnlock()
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	if err = statusError("multipart-prepare", status); err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	kind, params, err := mime.ParseMediaType(headers.Get("Content-Type"))
 	if err != nil || !strings.HasPrefix(kind, "multipart/") || params["boundary"] == "" {
-		return ErrProtocol
+		return UploadResult{}, ErrProtocol
 	}
 	reader := multipart.NewReader(bytes.NewReader(raw), params["boundary"])
 	var auth []string
@@ -277,52 +360,52 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 			break
 		}
 		if e != nil || count >= 2 {
-			return ErrProtocol
+			return UploadResult{}, ErrProtocol
 		}
 		b, e := limitedRead(p)
 		p.Close()
 		if e != nil {
-			return e
+			return UploadResult{}, e
 		}
 		if bytes.HasPrefix(bytes.TrimSpace(b), []byte("<")) {
 			if payload != nil {
-				return ErrProtocol
+				return UploadResult{}, ErrProtocol
 			}
 			payload = b
 		} else {
 			if auth != nil {
-				return ErrProtocol
+				return UploadResult{}, ErrProtocol
 			}
 			var v struct {
 				Auth []string `json:"authrequest"`
 			}
 			if json.Unmarshal(b, &v) != nil {
-				return ErrProtocol
+				return UploadResult{}, ErrProtocol
 			}
 			auth = v.Auth
 		}
 	}
 	if len(payload) == 0 {
-		return ErrProtocol
+		return UploadResult{}, ErrProtocol
 	}
 	g, err := c.decodeGrant(auth, "POST")
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	resp, err := c.data(ctx, g, bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	b, err := limitedRead(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	var result struct{ XMLName xml.Name }
 	if xml.Unmarshal(b, &result) != nil || result.XMLName.Local != "CompleteMultipartUploadResult" {
-		return ErrProtocol
+		return UploadResult{}, ErrProtocol
 	}
-	return c.FinishUpload(ctx, u.DocumentID, u.Revision)
+	return c.FinishUploadResult(ctx, u.DocumentID, u.Revision)
 }
 func (c *Client) Download(ctx context.Context, id string, dst io.Writer) (int64, error) {
 	return c.download(ctx, id, "", nil, dst)

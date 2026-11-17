@@ -45,6 +45,9 @@
     ],
     "BH-10": [
       "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
+    ],
+    "BH-14": [
+      "upload_library_test.go#TestPersonalLibraryUploadResultAndPartGrant"
     ]
   }
 }
