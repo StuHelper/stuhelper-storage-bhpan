@@ -1,7 +1,7 @@
 ---
 type: guide
 status: Accepted
-updated: 2026-10-25
+updated: 2026-11-18
 ---
 
 # BHpan 使用与验证
@@ -21,6 +21,8 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 调用 `Libraries` 选择文档库，再执行所需文件操作。普通上传使用 `BeginUpload`、`WriteUpload`、`FinishUpload`；分片上传使用 `MultipartOptions`、`BeginMultipart`、`PartGrants`、`WritePart`、`CompleteMultipart`。调用方必须保留成功创建的文件标识，以便处理后续失败。
 
 `Delete` 将文件放入回收站。先通过 `RecycleBin` 获取对应回收站条目，再以其标识调用 `Restore` 或 `Purge`。业务程序应保存准确的对象归属，不依赖文件名进行日常删除。
+
+导入外链分享时，先用 `ParseShareURL` 从完整链接提取分享标识，再调用 `InspectShare` 判断分享是否有效及是否需要提取码，最后按需调用 `ResolveShare`。
 
 ## 真实账号验证
 

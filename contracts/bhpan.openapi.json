@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BHpan observed provider API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Private observed protocol contract; not a provider-issued specification or a StuHelper HTTP service."
   },
   "servers": [
@@ -1613,6 +1613,15 @@
                   "properties": {
                     "password_required": {
                       "type": "boolean"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    },
+                    "limited_times": {
+                      "type": "integer"
                     }
                   },
                   "required": [
