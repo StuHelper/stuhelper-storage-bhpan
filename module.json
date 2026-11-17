@@ -45,6 +45,9 @@
     ],
     "BH-10": [
       "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
+    ],
+    "BH-15": [
+      "challenge_test.go#TestChallengeClassificationAndRiskConfirmation"
     ]
   }
 }

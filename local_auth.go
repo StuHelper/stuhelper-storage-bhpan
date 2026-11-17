@@ -80,11 +80,11 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		return ErrProtocol
 	}
 	if p.Auth.Captcha.Enabled && p.Auth.Captcha.After == 0 {
-		return ErrChallenge
+		return challengeError("local-login-page", status, ChallengeCaptcha)
 	}
 	for _, enabled := range p.Auth.Factors {
 		if enabled {
-			return ErrChallenge
+			return challengeError("local-login-page", status, ChallengeMFA)
 		}
 	}
 	block, _ := pem.Decode([]byte(localPasswordKey))
@@ -108,6 +108,9 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		return err
 	}
 	if status == 400 || status == 401 || status == 403 {
+		if ch := detectLocalSigninChallenge(body); ch != ChallengeUnknown {
+			return challengeError("local-login", status, ch)
+		}
 		return ErrCredentials
 	}
 	if err = statusError("local-login", status); err != nil {
