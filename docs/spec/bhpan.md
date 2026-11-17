@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-10
+updated: 2026-11-18
 ---
 
 # BHpan 适配接口
@@ -20,7 +20,7 @@ updated: 2026-11-10
 
 `Login` 明确使用北航 SSO。先取得 CAS execution 字段，提交用户名与密码，再完成网盘 OAuth challenge 和回调。最终必须取得网盘 token，并成功读取个人文档库，才返回登录成功。登录返回的用户中心页面不作为成功证明，也不需要跟随其 HTTP 跳转。
 
-`LoginLocal` 明确使用网盘本地账号。先读取登录页面中的 challenge、CSRF 和设备信息，再用供应商 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
+`LoginLocal` 明确使用网盘本地账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
 
 两种方式不自动回退。失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。出现风险确认、图形验证或二次认证时返回交互验证状态，交互流程尚未实现。
 

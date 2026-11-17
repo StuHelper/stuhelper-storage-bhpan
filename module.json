@@ -15,7 +15,8 @@
       "client_test.go#TestSSOLoginAndSessionReset"
     ],
     "BH-02": [
-      "client_test.go#TestLocalLoginEncryptsCredentials"
+      "client_test.go#TestLocalLoginEncryptsCredentials",
+      "local_key_test.go#TestLocalPublicKeyOverrideAndScriptOrder"
     ],
     "BH-03": [
       "client_test.go#TestLoginRiskAndUntrustedRedirect",

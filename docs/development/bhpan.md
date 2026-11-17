@@ -1,7 +1,7 @@
 ---
 type: development
 status: Accepted
-updated: 2026-11-10
+updated: 2026-11-18
 ---
 
 # BHpan 实施状态
@@ -14,7 +14,7 @@ stuhelper-storage-bhpan 以 AGPL-3.0-only 公开提供独立 Go 存储适配库�
 
 ## 迁移范围
 
-实现从本任务 campus-adapters 工作树迁到独立仓库，Go 包移至仓库根目录。CLI 改用新导入路径，测试与契约引用同步调整。八个运行时代码文件与迁出提交逐字节一致，来源提交与文件摘要保存在 migration-source.json。
+实现从本任务 campus-adapters 工作树迁到独立仓库，Go 包移至仓库根目录。CLI 改用新导入路径，测试与契约引用同步调整。`migration-source.json` 保存初始迁出提交及当时的文件摘要，后续修复与协议演进在本仓库独立维护。
 
 初始迁移保留原协议行为。当前新增稳定账号标识与文件标识查询，观测契约更新到 0.2.0，版本 tag 尚未发行。字段来源包括[供应商文档](https://developers.aishutech.com/napi/documents/307)和本任务获准账号的观测。
 
