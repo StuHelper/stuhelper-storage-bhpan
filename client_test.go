@@ -19,8 +19,15 @@ import (
 
 func fixture(t *testing.T, h http.HandlerFunc) (*Client, *httptest.Server) {
 	t.Helper()
-	validate := contractValidator(t)
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { validate(r); h(w, r) }))
+	return newFixture(t, true, h)
+}
+func malformedFixture(t *testing.T, h http.HandlerFunc) (*Client, *httptest.Server) {
+	t.Helper()
+	return newFixture(t, false, h)
+}
+func newFixture(t *testing.T, checkResponse bool, h http.HandlerFunc) (*Client, *httptest.Server) {
+	t.Helper()
+	server := httptest.NewTLSServer(contractMiddleware(t, checkResponse, nil, nil, h))
 	t.Cleanup(server.Close)
 	c, e := New(Config{CloudURL: server.URL, SSOURL: server.URL, Transport: server.Client().Transport, Timeout: time.Second})
 	if e != nil {
@@ -266,7 +273,7 @@ func TestResponseBoundsAndSafeErrors(t *testing.T) {
 		{"html", "<html>login</html>", 200, ErrProtocol}, {"null", "null", 200, ErrProtocol}, {"missing", "{}", 200, ErrProtocol}, {"large", strings.Repeat("x", metadataLimit+1), 200, ErrProtocol},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(tc.status); fmt.Fprint(w, tc.body) })
+			c, _ := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(tc.status); fmt.Fprint(w, tc.body) })
 			c.token = "secret-token"
 			_, e := c.Quota(context.Background())
 			if !errors.Is(e, tc.want) {
@@ -376,14 +383,14 @@ func TestOriginAndGrantValidation(t *testing.T) {
 
 func TestMalformedMetadataNeverBecomesEmptySuccess(t *testing.T) {
 	for _, body := range []string{`{}`, `{"dirs":null,"files":[]}`, `{"dirs":[],"files":[{"docid":"id","name":"file"}]}`} {
-		c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
+		c, _ := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
 		c.token = "fixture"
 		if _, e := c.List(context.Background(), "root"); !errors.Is(e, ErrProtocol) {
 			t.Fatal("invalid list accepted", e)
 		}
 	}
 	for _, body := range []string{`<html>login</html>`, `false`, `{"error_code":42,"message":"private-provider-detail"}`} {
-		c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
+		c, _ := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
 		c.token = "fixture"
 		if e := c.Delete(context.Background(), "file"); e == nil || strings.Contains(e.Error(), "private-provider-detail") {
 			t.Fatal("invalid mutation response", e)
@@ -422,4 +429,46 @@ func TestEmptyUploadUsesExplicitLengthAndRejectsData(t *testing.T) {
 	if !errors.Is(err, ErrInput) || writes.Load() != 1 {
 		t.Fatal("nonempty source reached object store", err, writes.Load())
 	}
+}
+
+func TestStreamLengthMismatchAndConcurrentClose(t *testing.T) {
+	var base string
+	c, server := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/efast/v1/file/osbeginupload":
+			reply(w, map[string]any{"docid": "gns://root/stream", "rev": "r1", "authrequest": []string{"PUT", base + "/object", "Authorization: signed", "X-Amz-Date: date", "Content-Type: application/octet-stream"}})
+		case "/api/efast/v1/owned-doc-lib":
+			reply(w, []any{map[string]string{"id": "gns://root", "name": "Drive"}})
+		case "/object":
+			_, _ = io.Copy(io.Discard, r.Body)
+			w.Header().Set("ETag", `"etag"`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	base = server.URL
+	c.token = "account-token"
+	ctx := context.Background()
+
+	upload, err := c.BeginUpload(ctx, "gns://root", "stream.bin", 4)
+	check(t, err)
+	if _, err := c.WriteUpload(ctx, upload, strings.NewReader("ab")); err == nil {
+		t.Fatal("truncated upload stream must fail")
+	}
+	if _, err := c.WriteUpload(ctx, upload, strings.NewReader("abcdef")); err == nil {
+		t.Fatal("oversized upload stream must fail")
+	}
+
+	// Concurrent Close() alongside active metadata reads must remain race-free.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 25 {
+			_, _ = c.Libraries(ctx)
+		}
+	}()
+	for range 10 {
+		c.Close()
+	}
+	<-done
 }

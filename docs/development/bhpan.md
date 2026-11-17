@@ -1,7 +1,7 @@
 ---
 type: development
 status: Accepted
-updated: 2026-11-10
+updated: 2026-11-18
 ---
 
 # BHpan 实施状态
@@ -16,7 +16,7 @@ stuhelper-storage-bhpan 以 AGPL-3.0-only 公开提供独立 Go 存储适配库�
 
 实现从本任务 campus-adapters 工作树迁到独立仓库，Go 包移至仓库根目录。CLI 改用新导入路径，测试与契约引用同步调整。八个运行时代码文件与迁出提交逐字节一致，来源提交与文件摘要保存在 migration-source.json。
 
-初始迁移保留原协议行为。当前新增稳定账号标识与文件标识查询，观测契约更新到 0.2.0，版本 tag 尚未发行。字段来源包括[供应商文档](https://developers.aishutech.com/napi/documents/307)和本任务获准账号的观测。
+初始迁移保留原协议行为。当前新增稳定账号标识与文件标识查询，观测契约更新到 0.3.0，测试夹具执行双向请求与响应 Schema 校验并覆盖全部 35 个接口操作。字段来源包括[供应商文档](https://developers.aishutech.com/napi/documents/307)和本任务获准账号的观测。
 
 ## 验证状态
 
@@ -35,7 +35,7 @@ stuhelper-storage-bhpan 以 AGPL-3.0-only 公开提供独立 Go 存储适配库�
 
 空上传的固定长度、非空源拒绝，以及分享目录子项与下载授权的路由 cookie 保留已通过回归测试，对象请求继续检查无 cookie。
 
-秒传、归档下载、分享历史和共享目录遍历已通过本地协议夹具，尚未做真实账号验收。自动测试不使用真实账号。本次交付未装配正式 backend，未发行或部署。仓库与分支交付状态由任务结果单独说明。
+秒传、归档下载、分享历史和共享目录遍历已通过本地协议夹具与 `internal/probe` 端到端单测，`bhpan-probe` 已支持对应探测开关，尚未做真实账号验收。自动测试不使用真实账号。本次交付未装配正式 backend，未发行或部署。仓库与分支交付状态由任务结果单独说明。
 
 ## 剩余工作
 

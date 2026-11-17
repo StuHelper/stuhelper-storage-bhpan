@@ -28,17 +28,20 @@
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
       "client_test.go#TestOriginAndGrantValidation",
-      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData"
+      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData",
+      "client_test.go#TestStreamLengthMismatchAndConcurrentClose"
     ],
     "BH-06": [
       "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
     ],
     "BH-07": [
       "protocol_test.go#TestShareTokenIsolationAndCRUD",
-      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren"
+      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-08": [
-      "protocol_test.go#TestOptionalTransferOperations"
+      "protocol_test.go#TestOptionalTransferOperations",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-09": [
       "identity_test.go#TestStableIdentityAndMalformedProfile"
