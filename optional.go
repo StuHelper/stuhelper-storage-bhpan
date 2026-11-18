@@ -34,27 +34,35 @@ func (c *Client) FastUploadAvailable(ctx context.Context, length int64, sliceMD5
 	}
 	return *out.Match, nil
 }
-func (c *Client) FastUpload(ctx context.Context, parent, name string, length int64, md5, crc32 string) error {
+func (c *Client) FastUpload(ctx context.Context, parent, name string, length int64, md5, crc32 string) (UploadResult, error) {
 	if !textOK(parent) || !nameOK(name) || length <= 0 || !digestOK(md5, 32) || !digestOK(crc32, 8) {
-		return ErrInput
+		return UploadResult{}, ErrInput
 	}
 	var out struct {
-		Success *bool `json:"success"`
+		Success    *bool  `json:"success"`
+		DocumentID string `json:"docid"`
+		Revision   string `json:"rev"`
 	}
 	err := c.api(ctx, "fast-upload", "POST", "/api/efast/v1/file/dupload", map[string]any{"client_mtime": time.Now().UnixMilli(), "docid": parent, "name": name, "length": length, "md5": strings.ToLower(md5), "crc32": strings.ToLower(crc32), "ondup": 1}, &out)
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	if out.Success == nil {
-		return ErrProtocol
+		return UploadResult{}, ErrProtocol
 	}
 	if !*out.Success {
-		return ErrRejected
+		return UploadResult{}, ErrRejected
 	}
-	return nil
+	if !textOK(out.DocumentID) || !textOK(out.Revision) {
+		return UploadResult{}, ErrProtocol
+	}
+	return UploadResult{DocumentID: out.DocumentID, Revision: out.Revision}, nil
 }
+
+const archiveEntryLimit = 1000
+
 func (c *Client) DownloadArchive(ctx context.Context, name string, directories, files []string, dst io.Writer) (int64, error) {
-	if !nameOK(name) || len(directories)+len(files) == 0 || dst == nil {
+	if !nameOK(name) || len(directories)+len(files) == 0 || len(directories)+len(files) > archiveEntryLimit || dst == nil {
 		return 0, ErrInput
 	}
 	for _, ids := range [][]string{directories, files} {
@@ -81,31 +89,25 @@ func (c *Client) DownloadArchive(ctx context.Context, name string, directories, 
 	if err != nil {
 		return 0, err
 	}
-	resp, err := c.data(ctx, g, nil, 0)
+	resp, err := c.data(ctx, "archive-data", g, nil, 0)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
-	n, err := io.Copy(dst, resp.Body)
-	if err != nil {
-		if ctx.Err() != nil {
-			return n, ctx.Err()
-		}
-		return n, &Error{"archive-body", resp.StatusCode, ErrUnavailable}
-	}
-	return n, nil
+	return copyStream(ctx, "archive-body", resp.StatusCode, dst, resp.Body)
 }
 func (c *Client) ShareHistory(ctx context.Context) ([]Share, error) {
 	var out struct {
 		Entries []struct {
 			Document ShareItem `json:"doc"`
 			Links    []struct {
-				ID       string   `json:"id"`
-				Title    string   `json:"title"`
-				Expires  string   `json:"expires_at"`
-				Password string   `json:"password"`
-				Limit    int64    `json:"limited_times"`
-				Allow    []string `json:"allow"`
+				ID               string   `json:"id"`
+				Title            string   `json:"title"`
+				Expires          string   `json:"expires_at"`
+				Password         string   `json:"password"`
+				PasswordRequired bool     `json:"password_required"`
+				Limit            int64    `json:"limited_times"`
+				Allow            []string `json:"allow"`
 			} `json:"link_configs"`
 		} `json:"entries"`
 	}
@@ -118,12 +120,19 @@ func (c *Client) ShareHistory(ctx context.Context) ([]Share, error) {
 	shares := []Share{}
 	for _, entry := range out.Entries {
 		for _, link := range entry.Links {
-			if !textOK(link.ID) || !textOK(entry.Document.ID) {
+			if !shareIDOK(link.ID) || !textOK(entry.Document.ID) || entry.Document.ID == "." || entry.Document.ID == ".." || (entry.Document.Type != "file" && entry.Document.Type != "folder") {
 				return nil, ErrProtocol
 			}
 			item := entry.Document
 			item.Allow = link.Allow
-			shares = append(shares, Share{ID: link.ID, Title: link.Title, ExpiresAt: link.Expires, Password: link.Password, LimitedTimes: link.Limit, Item: item})
+			shares = append(shares, Share{
+				ID:           link.ID,
+				Title:        link.Title,
+				ExpiresAt:    link.Expires,
+				HasPassword:  link.Password != "" || link.PasswordRequired,
+				LimitedTimes: link.Limit,
+				Item:         item,
+			})
 		}
 	}
 	return shares, nil

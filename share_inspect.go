@@ -16,10 +16,6 @@ type ShareInfo struct {
 	LimitedTimes     int64  `json:"limited_times,omitempty"`
 }
 
-func validShareID(id string) bool {
-	return textOK(id) && len(id) <= 512 && id != "." && id != ".." && !strings.ContainsAny(id, "%/\\;=\" \t")
-}
-
 // ParseShareURL extracts and validates the share identifier from a full share
 // URL matching the default BHpan origin (https://bhpan.buaa.edu.cn).
 func ParseShareURL(raw string) (string, error) {
@@ -48,7 +44,7 @@ func parseShareURLForOrigin(cloudOrigin, raw string) (string, error) {
 		return "", ErrInput
 	}
 	id, ok := strings.CutPrefix(u.EscapedPath(), "/link/")
-	if !ok || !validShareID(id) {
+	if !ok || !shareIDOK(id) {
 		return "", ErrInput
 	}
 	return id, nil
@@ -58,7 +54,7 @@ func parseShareURLForOrigin(cloudOrigin, raw string) (string, error) {
 // personal account tokens or cookies, allowing callers to verify existence,
 // title, expiration, and whether an extraction password is required.
 func (c *Client) InspectShare(ctx context.Context, id string) (ShareInfo, error) {
-	if !validShareID(id) {
+	if !shareIDOK(id) {
 		return ShareInfo{}, ErrInput
 	}
 	hc := c.anonymousClient(nil)
