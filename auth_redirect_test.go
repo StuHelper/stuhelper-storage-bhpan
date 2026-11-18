@@ -22,7 +22,7 @@ func TestSSOLoginDetectsCaptchaAndMFAChallenges(t *testing.T) {
 			var postHits atomic.Int32
 			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/login" && r.Method == "GET" {
-					fmt.Fprintf(w, `<form><input type="hidden" name="execution" value="t1"><input type="text" name="%s"></form>`, field)
+					fmt.Fprintf(w, `<form><input type="hidden" name="execution" value="t1"><input type="text" name="%s" title="not disabled in this flow"></form>`, field)
 					return
 				}
 				if r.Method == "POST" {
@@ -152,6 +152,7 @@ func TestRedirectBoundariesAndObjectStore3xx(t *testing.T) {
 		"http://uc.buaa.edu.cn",
 		"https://uc.buaa.edu.cn",
 		"https://uc.buaa.edu.cn/index",
+		"//uc.buaa.edu.cn/",
 	} {
 		t.Run(location, func(t *testing.T) {
 			var cloud string

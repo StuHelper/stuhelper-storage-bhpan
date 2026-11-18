@@ -9,9 +9,8 @@ import (
 	"strings"
 )
 
-var inputTag = regexp.MustCompile(`(?is)<input\b[^>]*>`)
-var attribute = regexp.MustCompile(`(?is)([a-z_][a-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))`)
-var disabledAttr = regexp.MustCompile(`(?i)(?:^|\s)disabled(?:\s|=|>|/)`)
+var inputTag = regexp.MustCompile(`(?is)<input\b(?:[^>"']|"[^"]*"|'[^']*')*>`)
+var attribute = regexp.MustCompile(`(?is)\s+([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?`)
 
 func isCASChallengeField(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
@@ -42,7 +41,8 @@ func parseLoginPage(body []byte) (ticket string, challenge bool) {
 		if attrs["name"] == "execution" && ticket == "" {
 			ticket = attrs["value"]
 		}
-		if !disabledAttr.Match(tag) && strings.ToLower(attrs["type"]) != "hidden" && isCASChallengeField(attrs["name"]) {
+		_, disabled := attrs["disabled"]
+		if !disabled && strings.ToLower(attrs["type"]) != "hidden" && isCASChallengeField(attrs["name"]) {
 			challenge = true
 		}
 	}
@@ -91,7 +91,7 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && postTicket != "" {
 		return &Error{"login", status, ErrCredentials}
 	}
-	portal, parseErr := url.Parse(headers.Get("Location"))
+	portal, parseErr := final.Parse(headers.Get("Location"))
 	portalRedirect := (status == http.StatusFound || status == http.StatusSeeOther) &&
 		parseErr == nil && portal != nil &&
 		(portal.Scheme == "http" || portal.Scheme == "https") &&
