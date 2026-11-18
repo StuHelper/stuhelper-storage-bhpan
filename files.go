@@ -48,7 +48,7 @@ func (c *Client) Libraries(ctx context.Context) ([]Library, error) {
 	if err == nil {
 		for _, e := range out {
 			if !textOK(e.ID) {
-				return nil, ErrProtocol
+				return nil, &Error{"libraries", 200, ErrProtocol}
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func (c *Client) Quota(ctx context.Context) (Quota, error) {
 		return Quota{}, err
 	}
 	if out.Allocated == nil || out.Used == nil || *out.Allocated < 0 || *out.Used < 0 {
-		return Quota{}, ErrProtocol
+		return Quota{}, &Error{"quota", 200, ErrProtocol}
 	}
 	// An account may be over quota after the provider reduces its allocation.
 	return Quota{*out.Allocated, *out.Used}, nil
@@ -79,7 +79,7 @@ func (c *Client) List(ctx context.Context, id string) (Directory, error) {
 		for _, items := range [][]Entry{out.Directories, out.Files} {
 			for _, v := range items {
 				if !textOK(v.ID) || !textOK(v.Name) || v.Size < -1 {
-					return Directory{}, ErrProtocol
+					return Directory{}, &Error{"list", 200, ErrProtocol}
 				}
 			}
 		}
@@ -93,7 +93,7 @@ func (c *Client) DirectorySize(ctx context.Context, id string) (Size, error) {
 	}
 	err := c.api(ctx, "size", "POST", "/api/efast/v1/dir/size", map[string]any{"docid": id, "onlyrecycle": false}, &out)
 	if err == nil && (out.Bytes < 0 || out.Files < 0 || out.Directories < 0) {
-		err = ErrProtocol
+		err = &Error{"size", 200, ErrProtocol}
 	}
 	return out, err
 }
@@ -106,7 +106,7 @@ func (c *Client) SuggestedName(ctx context.Context, id, name string) (string, er
 	}
 	err := c.api(ctx, "suggest-name", "POST", "/api/efast/v1/file/getsuggestname", map[string]any{"docid": id, "name": name}, &out)
 	if err == nil && !nameOK(out.Name) {
-		err = ErrProtocol
+		err = &Error{"suggest-name", 200, ErrProtocol}
 	}
 	return out.Name, err
 }
@@ -125,7 +125,7 @@ func (c *Client) change(ctx context.Context, op, path string, in map[string]any,
 	}
 	err := c.api(ctx, op, "POST", "/api/efast/v1/"+path, in, target)
 	if err == nil && wantID && !textOK(out.ID) {
-		err = ErrProtocol
+		err = &Error{op, 200, ErrProtocol}
 	}
 	return out.ID, err
 }
@@ -177,6 +177,11 @@ func (d *Directory) UnmarshalJSON(data []byte) error {
 	var out wire
 	if json.Unmarshal(data, &out) != nil || out.Directories == nil || out.Files == nil {
 		return ErrProtocol
+	}
+	for _, f := range out.Files {
+		if f.Size < 0 {
+			return ErrProtocol
+		}
 	}
 	*d = Directory(out)
 	return nil

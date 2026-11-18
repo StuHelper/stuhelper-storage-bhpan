@@ -351,8 +351,8 @@ func TestTransferCredentialsAndRedirectIsolation(t *testing.T) {
 	}
 	upload.grant.target = base + "/redirect"
 	_, e = c.WriteUpload(ctx, upload, strings.NewReader("test"))
-	if e == nil {
-		t.Fatal("redirect accepted")
+	if !errors.Is(e, ErrDestination) {
+		t.Fatal("redirect accepted", e)
 	}
 	upload.grant.target = "https://untrusted.example/object"
 	_, e = c.WriteUpload(ctx, upload, strings.NewReader("test"))

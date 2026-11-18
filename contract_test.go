@@ -154,6 +154,12 @@ func contractMiddleware(t *testing.T, checkResponse bool, seen map[string]bool, 
 	})
 }
 
+func contractValidator(t *testing.T) func(*http.Request) {
+	t.Helper()
+	handler := contractMiddleware(t, false, nil, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	return func(r *http.Request) { handler.ServeHTTP(httptest.NewRecorder(), r) }
+}
+
 func pathMatches(pattern, escapedPath string) bool {
 	left, right := strings.Split(pattern, "/"), strings.Split(escapedPath, "/")
 	if len(left) != len(right) {
@@ -161,7 +167,7 @@ func pathMatches(pattern, escapedPath string) bool {
 	}
 	for i, part := range left {
 		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
-			if right[i] == "" {
+			if right[i] == "" || right[i] == "." || right[i] == ".." {
 				return false
 			}
 			continue
@@ -273,6 +279,8 @@ func conforms(schema map[string]any, value any, definitions map[string]any) bool
 				if !conforms(child, v, definitions) {
 					return false
 				}
+			} else if allowed, ok := schema["additionalProperties"].(bool); ok && !allowed {
+				return false
 			}
 		}
 		return true
@@ -362,7 +370,7 @@ func TestAllContractOperationsAndPublicShare(t *testing.T) {
 		case "/api/shared-link/v1/document/anonymous/pub-share-01":
 			w.WriteHeader(http.StatusNoContent)
 		case "/api/shared-link/v1/document/folder/" + docGNS:
-			reply(w, []Share{{ID: "pub-share-01", Title: "Public", ExpiresAt: "2026-12-31T00:00:00Z", Password: "", LimitedTimes: -1, Item: ShareItem{ID: docGNS, Type: "file", Allow: []string{"download"}}}})
+			reply(w, []shareResponse{{ID: "pub-share-01", Title: "Public", ExpiresAt: "2026-12-31T00:00:00Z", Password: "", LimitedTimes: -1, Item: ShareItem{ID: docGNS, Type: "file", Allow: []string{"download"}}}})
 		case "/api/doc-share/v1/docs-shared-with-anyone":
 			reply(w, map[string]any{"entries": []any{map[string]any{"doc": map[string]any{"id": docGNS, "type": "file", "allow": []string{"download"}}, "link_configs": []any{map[string]any{"id": "pub-share-01", "title": "Public", "allow": []string{"download"}, "limited_times": -1}}}}})
 		case "/api/shared-link/v1/links/pub-share-01":

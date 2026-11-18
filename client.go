@@ -95,11 +95,14 @@ func (c *Client) reset() {
 		if len(via) >= 10 {
 			return ErrProtocol
 		}
-		origin := originOf(req.URL)
-		if req.URL.Hostname() == "uc.buaa.edu.cn" && req.URL.Path == "/" && req.Method == "GET" {
+		if req.URL.User != nil || req.URL.Fragment != "" {
+			return ErrDestination
+		}
+		if strings.EqualFold(req.URL.Hostname(), "uc.buaa.edu.cn") && req.Method == http.MethodGet {
 			return http.ErrUseLastResponse
 		}
-		if req.URL.User != nil || req.URL.Fragment != "" || (origin != c.cloud && origin != c.sso && origin != "https://uc.buaa.edu.cn") {
+		origin := originOf(req.URL)
+		if origin != c.cloud && origin != c.sso {
 			return ErrDestination
 		}
 		// Do not forward credential bodies across origins on 307/308 responses.
@@ -112,6 +115,20 @@ func (c *Client) reset() {
 
 // Close invalidates the entire session, including SSO and cloud cookies.
 func (c *Client) Close() { c.mu.Lock(); defer c.mu.Unlock(); c.reset() }
+
+func readResponseBody(ctx context.Context, op string, status int, r io.Reader) ([]byte, error) {
+	b, e := io.ReadAll(io.LimitReader(r, metadataLimit+1))
+	if e != nil {
+		if ctx.Err() != nil {
+			return nil, &Error{op, status, ctx.Err()}
+		}
+		return nil, &Error{op, status, ErrUnavailable}
+	}
+	if len(b) > metadataLimit {
+		return nil, &Error{op, status, ErrProtocol}
+	}
+	return b, nil
+}
 
 func limitedRead(r io.Reader) ([]byte, error) {
 	b, e := io.ReadAll(io.LimitReader(r, metadataLimit+1))
@@ -146,12 +163,9 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 		return nil, nil, nil, 0, &Error{operation, 0, kind}
 	}
 	defer resp.Body.Close()
-	data, e := limitedRead(resp.Body)
+	data, e := readResponseBody(ctx, operation, resp.StatusCode, resp.Body)
 	if e != nil {
-		if ctx.Err() != nil {
-			e = ctx.Err()
-		}
-		return nil, nil, nil, resp.StatusCode, &Error{operation, resp.StatusCode, e}
+		return nil, nil, nil, resp.StatusCode, e
 	}
 	return data, resp.Header, resp.Request.URL, resp.StatusCode, nil
 }
@@ -176,13 +190,26 @@ func statusError(op string, status int) error {
 	return &Error{op, status, kind}
 }
 
-func (c *Client) api(ctx context.Context, op, method, path string, in, out any) error {
+func (c *Client) sessionClient(op string) (*http.Client, string, error) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.token == "" {
-		return &Error{op, 0, ErrSession}
+	token := c.token
+	var hc http.Client
+	if c.client != nil {
+		hc = *c.client
 	}
-	return c.json(ctx, c.client, c.token, op, method, path, in, out)
+	c.mu.RUnlock()
+	if token == "" {
+		return nil, "", &Error{op, 0, ErrSession}
+	}
+	return &hc, token, nil
+}
+
+func (c *Client) api(ctx context.Context, op, method, path string, in, out any) error {
+	hc, token, err := c.sessionClient(op)
+	if err != nil {
+		return err
+	}
+	return c.json(ctx, hc, token, op, method, path, in, out)
 }
 
 func (c *Client) json(ctx context.Context, hc *http.Client, token, op, method, path string, in, out any) error {

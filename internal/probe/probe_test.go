@@ -196,7 +196,7 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 			rawIn, _ := json.Marshal(in)
 			_ = json.Unmarshal(rawIn, &sh)
 			sid := nextID()
-			shares[sid] = &storedShare{id: sid, itemID: sh.Item.ID, itemType: sh.Item.Type, password: sh.Password}
+			shares[sid] = &storedShare{id: sid, itemID: sh.Item.ID, itemType: sh.Item.Type, password: str("password")}
 			replyJSON(map[string]string{"id": sid})
 		case "/api/doc-share/v1/docs-shared-with-anyone":
 			replyJSON(map[string]any{"entries": []any{}})
@@ -204,6 +204,10 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 			var linkReq map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&linkReq)
 			sid, _ := linkReq["id"].(string)
+			if sh := shares[sid]; sh == nil || sh.password == "" || linkReq["password"] != sh.password {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
 			w.Header().Add("Set-Cookie", "link_token:"+sid+"=tok-"+sid+"; Path=/; Secure")
 			http.Redirect(w, r, "/landing", http.StatusFound)
 		case "/api/efast/v1/entry-item":
