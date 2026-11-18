@@ -95,11 +95,14 @@ func (c *Client) reset() {
 		if len(via) >= 10 {
 			return ErrProtocol
 		}
-		origin := originOf(req.URL)
-		if req.URL.Hostname() == "uc.buaa.edu.cn" && req.URL.Path == "/" && req.Method == "GET" {
+		if req.URL.User != nil || req.URL.Fragment != "" {
+			return ErrDestination
+		}
+		if strings.EqualFold(req.URL.Hostname(), "uc.buaa.edu.cn") && req.Method == http.MethodGet {
 			return http.ErrUseLastResponse
 		}
-		if req.URL.User != nil || req.URL.Fragment != "" || (origin != c.cloud && origin != c.sso && origin != "https://uc.buaa.edu.cn") {
+		origin := originOf(req.URL)
+		if origin != c.cloud && origin != c.sso {
 			return ErrDestination
 		}
 		// Do not forward credential bodies across origins on 307/308 responses.

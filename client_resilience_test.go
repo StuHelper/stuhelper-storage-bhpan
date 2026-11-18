@@ -66,6 +66,12 @@ func TestResponseBodyInterruptionAndContextCancellation(t *testing.T) {
 				body := `{"docid":"f1","rev":"r1","authrequest":["PUT","https://bhpan.buaa.edu.cn/object","Authorization: sig","X-Amz-Date: now","Content-Type: application/octet-stream"]}`
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			}
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				return nil, err
+			}
+			if err := r.Body.Close(); err != nil {
+				return nil, err
+			}
 			return &http.Response{
 				StatusCode: 200,
 				Header:     http.Header{"ETag": []string{`"e1"`}},

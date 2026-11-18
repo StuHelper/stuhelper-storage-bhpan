@@ -178,6 +178,11 @@ func (d *Directory) UnmarshalJSON(data []byte) error {
 	if json.Unmarshal(data, &out) != nil || out.Directories == nil || out.Files == nil {
 		return ErrProtocol
 	}
+	for _, f := range out.Files {
+		if f.Size < 0 {
+			return ErrProtocol
+		}
+	}
 	*d = Directory(out)
 	return nil
 }
