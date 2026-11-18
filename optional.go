@@ -53,8 +53,11 @@ func (c *Client) FastUpload(ctx context.Context, parent, name string, length int
 	}
 	return nil
 }
+
+const archiveEntryLimit = 1000
+
 func (c *Client) DownloadArchive(ctx context.Context, name string, directories, files []string, dst io.Writer) (int64, error) {
-	if !nameOK(name) || len(directories)+len(files) == 0 || dst == nil {
+	if !nameOK(name) || len(directories)+len(files) == 0 || len(directories)+len(files) > archiveEntryLimit || dst == nil {
 		return 0, ErrInput
 	}
 	for _, ids := range [][]string{directories, files} {
@@ -86,14 +89,7 @@ func (c *Client) DownloadArchive(ctx context.Context, name string, directories, 
 		return 0, err
 	}
 	defer resp.Body.Close()
-	n, err := io.Copy(dst, resp.Body)
-	if err != nil {
-		if ctx.Err() != nil {
-			return n, ctx.Err()
-		}
-		return n, &Error{"archive-body", resp.StatusCode, ErrUnavailable}
-	}
-	return n, nil
+	return copyStream(ctx, "archive-body", resp.StatusCode, dst, resp.Body)
 }
 func (c *Client) ShareHistory(ctx context.Context) ([]Share, error) {
 	var out struct {
