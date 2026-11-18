@@ -305,7 +305,8 @@ func share(ctx context.Context, c *bhpan.Client, id string, payload []byte) (err
 	if _, err = rand.Read(nonce); err != nil {
 		return errors.New("probe: random source unavailable")
 	}
-	s, err := c.CreateShare(ctx, bhpan.Share{Title: "Adapter verification", Password: hex.EncodeToString(nonce), ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339), LimitedTimes: -1, Item: bhpan.ShareItem{ID: id, Type: "file", Allow: []string{"display", "preview", "download"}}})
+	password := hex.EncodeToString(nonce)
+	s, err := c.CreateShare(ctx, bhpan.Share{Title: "Adapter verification", Password: password, ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339), LimitedTimes: -1, Item: bhpan.ShareItem{ID: id, Type: "file", Allow: []string{"display", "preview", "download"}}})
 	if err != nil {
 		return err
 	}
@@ -317,6 +318,7 @@ func share(ctx context.Context, c *bhpan.Client, id string, payload []byte) (err
 		}
 	}()
 	s.Title = "Adapter verification updated"
+	s.Password = password
 	if err = c.UpdateShare(ctx, s); err != nil {
 		return err
 	}
@@ -328,7 +330,7 @@ func share(ctx context.Context, c *bhpan.Client, id string, payload []byte) (err
 		return err
 	}
 	defer anonymous.Close()
-	entry, err := anonymous.ResolveShare(ctx, s.ID, s.Password)
+	entry, err := anonymous.ResolveShare(ctx, s.ID, password)
 	if err != nil {
 		return err
 	}
