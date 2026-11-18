@@ -81,6 +81,9 @@
     ],
     "BH-14": [
       "upload_library_test.go#TestPersonalLibraryUploadResultAndPartGrant"
+    ],
+    "BH-15": [
+      "challenge_test.go#TestChallengeClassificationAndRiskConfirmation"
     ]
   }
 }

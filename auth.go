@@ -2,7 +2,6 @@ package bhpan
 
 import (
 	"context"
-	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -12,46 +11,27 @@ import (
 var inputTag = regexp.MustCompile(`(?is)<input\b(?:[^>"']|"[^"]*"|'[^']*')*>`)
 var attribute = regexp.MustCompile(`(?is)\s+([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?`)
 
-func isCASChallengeField(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "captcha", "captcharesponse", "j_captcha_response", "captcha_code", "vcode", "verifycode", "validatecode",
-		"otp", "totp", "mfa", "smscode", "dynamiccode", "authcode":
-		return true
-	default:
-		return false
-	}
-}
-
-func parseLoginPage(body []byte) (ticket string, challenge bool) {
-	if strings.Contains(string(body), "continueForm") {
-		challenge = true
-	}
-	for _, tag := range inputTag.FindAll(body, -1) {
-		attrs := map[string]string{}
-		for _, a := range attribute.FindAllSubmatch(tag, -1) {
-			value := string(a[2])
-			if value == "" {
-				value = string(a[3])
-			}
-			if value == "" {
-				value = string(a[4])
-			}
-			attrs[strings.ToLower(string(a[1]))] = html.UnescapeString(value)
-		}
-		if attrs["name"] == "execution" && ticket == "" {
-			ticket = attrs["value"]
-		}
-		_, disabled := attrs["disabled"]
-		if !disabled && strings.ToLower(attrs["type"]) != "hidden" && isCASChallengeField(attrs["name"]) {
-			challenge = true
+func execution(body []byte) string {
+	for _, attrs := range parseInputAttrs(body) {
+		if attrs["name"] == "execution" && attrs["value"] != "" {
+			return attrs["value"]
 		}
 	}
-	return ticket, challenge
+	return ""
 }
 
 // Login uses BUAA CAS and AnyShare OAuth. A failed login always discards the
-// previous session. No automatic retry or password retention occurs.
-func (c *Client) Login(ctx context.Context, username, password string) (err error) {
+// previous session. No automatic retry, risk acknowledgement, or password
+// retention occurs.
+func (c *Client) Login(ctx context.Context, username, password string) error {
+	return c.LoginWithOptions(ctx, username, password, LoginOptions{})
+}
+
+// LoginWithOptions authenticates via BUAA CAS and AnyShare OAuth. When CAS
+// presents a continueForm risk prompt and opts.AcknowledgeRisk is true, the
+// confirmation form is submitted on the caller's behalf. CAPTCHA and MFA gates
+// always return ErrChallenge with their respective ChallengeKind.
+func (c *Client) LoginWithOptions(ctx context.Context, username, password string, opts LoginOptions) (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.reset()
@@ -70,10 +50,10 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if err = responseError("login-page", status, pageHeaders, body); err != nil {
 		return err
 	}
-	ticket, challenge := parseLoginPage(body)
-	if challenge {
-		return &Error{Operation: "login-page", Status: status, Kind: ErrChallenge}
+	if ch := detectCASChallenge(body); ch != ChallengeUnknown {
+		return challengeError("login-page", status, ch)
 	}
+	ticket := execution(body)
 	if ticket == "" {
 		return ErrProtocol
 	}
@@ -82,13 +62,31 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if err != nil {
 		return err
 	}
-	postTicket, postChallenge := parseLoginPage(body)
-	if postChallenge {
-		// Preserve risk-acknowledgement, captcha, and MFA steps as challenges.
-		// The caller must authorize interactive steps; a password alone does not imply consent.
-		return &Error{Operation: "login", Status: status, Kind: ErrChallenge}
+	loginOp := "login"
+	switch ch := detectCASChallenge(body); ch {
+	case ChallengeCaptcha, ChallengeMFA:
+		return challengeError("login", status, ch)
+	case ChallengeRiskConfirm:
+		if !opts.AcknowledgeRisk {
+			// Preserve the provider's explicit risk-acknowledgement step as a challenge.
+			// The caller must authorize it; a password alone does not imply consent.
+			return challengeError("login", status, ChallengeRiskConfirm)
+		}
+		continueTicket := execution(body)
+		if continueTicket == "" {
+			return ErrProtocol
+		}
+		confirmForm := url.Values{"execution": {continueTicket}, "_eventId": {parseContinueEventID(body)}}
+		body, headers, final, status, err = request(ctx, c.client, "login-risk-confirm", "POST", c.sso+"/login", "application/x-www-form-urlencoded", "", strings.NewReader(confirmForm.Encode()))
+		if err != nil {
+			return err
+		}
+		loginOp = "login-risk-confirm"
+		if nextCh := detectCASChallenge(body); nextCh != ChallengeUnknown {
+			return challengeError("login-risk-confirm", status, nextCh)
+		}
 	}
-	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && postTicket != "" {
+	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && execution(body) != "" {
 		return &Error{Operation: "login", Status: status, Kind: ErrCredentials}
 	}
 	portal, parseErr := final.Parse(headers.Get("Location"))
@@ -99,7 +97,7 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 		strings.EqualFold(portal.Hostname(), "uc.buaa.edu.cn") &&
 		(portal.Path == "" || strings.HasPrefix(portal.Path, "/"))
 	if !portalRedirect {
-		if err = responseError("login", status, headers, body); err != nil {
+		if err = responseError(loginOp, status, headers, body); err != nil {
 			return err
 		}
 	}

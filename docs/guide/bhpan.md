@@ -40,6 +40,8 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 ## 能力边界
 
-图形验证、短信或动态密码、风险确认续接和账号密码管理未实现。遇到交互验证返回 `ErrChallenge`，不要自动重试密码。调用方可在定时保活任务中显式调用 `RefreshSession` 续期会话，库不自行启动后台续期协程，也不把供应商失败转成空目录或删除事件。
+图形验证、短信或动态密码和账号密码管理未实现。遇到交互验证返回 `ErrChallenge`，可通过 `ChallengeOf` 识别 `risk_confirm`、`captcha` 或 `mfa`，不要盲目自动重试密码。用户本人在界面确认异地登录风险后，可调用 `LoginWithOptions` 传入 `AcknowledgeRisk: true` 完成续接。
+
+调用方可以显式调用 `RefreshSession` 续期。库不执行后台续期，也不把供应商失败转成空目录或删除事件。
 
 配置中的 `Transport` 与 `LocalPublicKeyPEM` 仅供服务端受控网络、测试或供应商公钥轮换应急使用，不接受前端用户指定。真实测试账号只用于当前授权范围；生产接入、贡献业务、持久化凭据与正式 backend 装配按各自任务实施。

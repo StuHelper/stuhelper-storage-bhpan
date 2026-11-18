@@ -22,7 +22,9 @@ updated: 2026-11-18
 
 `LoginLocal` 明确使用网盘本地账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
 
-两种方式不自动回退。失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。登录页或登录响应出现风险确认、图形验证或双因素验证时统一返回 `ErrChallenge`，不误报为凭据错误。
+两种方式不自动回退。失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。
+
+遇到风险确认、图形验证码或双因素认证时返回 `ErrChallenge`，并通过 `ChallengeOf` 提供 `risk_confirm`、`captcha`、`mfa` 脱敏分类。仅当调用方通过 `LoginWithOptions` 显式传入用户风险确认授权时，才提交 CAS `continueForm` 续接；验证码与双因素始终拒绝自动提交。
 
 `RefreshSession` 在已登录会话上显式请求刷新接口，更新 `client.oauth2_token` 并通过文档库读取核验有效性。会话过期时清理本地状态，临时故障或权限拒绝保留原错误类别。
 
@@ -82,5 +84,6 @@ updated: 2026-11-18
 | BH-12 | 显式会话续期更新并核验令牌，失效时清理会话而临时故障保留原状态分类 |
 | BH-13 | 错误保留整型供应商码与 Retry-After，对象传输细分操作标识且不泄露原始文本 |
 | BH-14 | 个人文档库严格筛选 user_doc_lib，秒传与完成上传返回文档标识及修订号，分片授权公开只读元数据 |
+| BH-15 | 交互验证区分风险确认、验证码与双因素，仅在用户显式授权时续接 CAS 风险确认 |
 
 场景与真实测试函数登记在 `module.json` 的 `scenario_tests`，由本仓检查验证。真实账号结果、服务端装配和部署状态见[实施状态](../development/bhpan.md)。

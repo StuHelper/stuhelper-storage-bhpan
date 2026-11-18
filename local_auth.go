@@ -97,44 +97,42 @@ func hasChallengeValue(v any) bool {
 	return false
 }
 
-func mapHasChallenge(m map[string]any, captchaEnabled bool, captchaAfter int) bool {
-	if m == nil {
-		return false
-	}
-	for _, key := range []string{
-		"vcode", "needvcode", "need_vcode",
-		"dualfactorauthinfo", "OTP", "otp", "validcode", "enable_otp", "enable_dualfactor", "need_second_auth", "mfa",
-	} {
+func localChallengeFields(m map[string]any, captchaEnabled bool, captchaAfter int) ChallengeKind {
+	for _, key := range []string{"vcode", "vcodeinfo", "captcha", "needvcode", "need_vcode"} {
 		if hasChallengeValue(m[key]) {
-			return true
+			return ChallengeCaptcha
 		}
 	}
-	if captchaEnabled && captchaAfter > 0 {
-		if cnt, ok := m["errcnt"].(float64); ok && int(cnt) >= captchaAfter {
-			return true
+	for _, key := range []string{"dualfactorauthinfo", "dualfactor", "OTP", "otp", "validcode", "enable_otp", "enable_dualfactor", "need_second_auth", "mfa"} {
+		if hasChallengeValue(m[key]) {
+			return ChallengeMFA
 		}
 	}
-	return false
+	if count, ok := m["errcnt"].(float64); ok && captchaEnabled && captchaAfter > 0 && count >= float64(captchaAfter) {
+		return ChallengeCaptcha
+	}
+	return ChallengeUnknown
 }
 
-func localSigninChallenge(body []byte, captchaEnabled bool, captchaAfter int) bool {
+func localSigninChallenge(body []byte, captchaEnabled bool, captchaAfter int) ChallengeKind {
 	var envelope map[string]any
 	if json.Unmarshal(body, &envelope) != nil {
-		return false
+		return ChallengeUnknown
 	}
-	if code, ok := envelope["code"].(float64); ok {
-		c := int64(code)
-		if c == 401001002 || c == 401001003 || (c >= 401001030 && c <= 401001039) {
-			return true
+	detail, _ := envelope["detail"].(map[string]any)
+	for _, fields := range []map[string]any{envelope, detail} {
+		if kind := localChallengeFields(fields, captchaEnabled, captchaAfter); kind != ChallengeUnknown {
+			return kind
 		}
 	}
-	if mapHasChallenge(envelope, captchaEnabled, captchaAfter) {
-		return true
+	code, _ := envelope["code"].(float64)
+	switch {
+	case code == 401001002 || code == 401001003:
+		return ChallengeCaptcha
+	case code >= 401001030 && code <= 401001039:
+		return ChallengeMFA
 	}
-	if detail, ok := envelope["detail"].(map[string]any); ok && mapHasChallenge(detail, captchaEnabled, captchaAfter) {
-		return true
-	}
-	return false
+	return ChallengeUnknown
 }
 
 // LoginLocal authenticates a cloud-local account. It is never used as a fallback
@@ -197,11 +195,11 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		return ErrProtocol
 	}
 	if p.Auth.Captcha.Enabled && p.Auth.Captcha.After == 0 {
-		return ErrChallenge
+		return challengeError("local-login-page", status, ChallengeCaptcha)
 	}
 	for _, enabled := range p.Auth.Factors {
 		if enabled {
-			return ErrChallenge
+			return challengeError("local-login-page", status, ChallengeMFA)
 		}
 	}
 	encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, key, []byte(password))
@@ -217,8 +215,8 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		return err
 	}
 	if status == 400 || status == 401 || status == 403 {
-		if localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After) {
-			return &Error{Operation: "local-login", Status: status, Kind: ErrChallenge}
+		if ch := localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After); ch != ChallengeUnknown {
+			return challengeError("local-login", status, ch)
 		}
 		return &Error{Operation: "local-login", Status: status, Kind: ErrCredentials}
 	}
@@ -229,8 +227,8 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		Redirect string `json:"redirect"`
 	}
 	if json.Unmarshal(body, &reply) != nil || reply.Redirect == "" {
-		if localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After) {
-			return &Error{Operation: "local-login", Status: status, Kind: ErrChallenge}
+		if ch := localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After); ch != ChallengeUnknown {
+			return challengeError("local-login", status, ch)
 		}
 		return ErrProtocol
 	}
