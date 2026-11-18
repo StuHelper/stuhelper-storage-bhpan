@@ -10,6 +10,20 @@ import (
 	"testing"
 )
 
+func isContractRequest(r *http.Request) bool {
+	escaped := r.URL.EscapedPath()
+	if strings.HasPrefix(escaped, "/api/") {
+		return true
+	}
+	if escaped == "/link" || strings.HasPrefix(escaped, "/link/") {
+		return true
+	}
+	if escaped == "/oauth2/signin" && r.Method == http.MethodPost {
+		return true
+	}
+	return false
+}
+
 // The provider fixture validates every API request against the checked-in
 // contract, in addition to operation-specific behavior assertions.
 func contractValidator(t *testing.T) func(*http.Request) {
@@ -26,18 +40,19 @@ func contractValidator(t *testing.T) func(*http.Request) {
 	schemas := doc["components"].(map[string]any)["schemas"].(map[string]any)
 	return func(r *http.Request) {
 		t.Helper()
-		if !strings.HasPrefix(r.URL.Path, "/api/") {
+		if !isContractRequest(r) {
 			return
 		}
+		escaped := r.URL.EscapedPath()
 		var methods map[string]any
 		for pattern, raw := range paths {
-			if pathMatches(pattern, r.URL.Path) {
+			if pathMatches(pattern, escaped) {
 				methods = raw.(map[string]any)
 				break
 			}
 		}
 		if methods == nil {
-			t.Errorf("request path is absent from provider contract: %s", r.URL.Path)
+			t.Errorf("request path is absent from provider contract: %s", escaped)
 			return
 		}
 		operation, ok := methods[strings.ToLower(r.Method)].(map[string]any)
@@ -64,13 +79,16 @@ func contractValidator(t *testing.T) func(*http.Request) {
 		}
 	}
 }
-func pathMatches(pattern, path string) bool {
-	left, right := strings.Split(pattern, "/"), strings.Split(path, "/")
+func pathMatches(pattern, escapedPath string) bool {
+	left, right := strings.Split(pattern, "/"), strings.Split(escapedPath, "/")
 	if len(left) != len(right) {
 		return false
 	}
 	for i, part := range left {
 		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
+			if right[i] == "" || right[i] == "." || right[i] == ".." {
+				return false
+			}
 			continue
 		}
 		if part != right[i] {
@@ -140,6 +158,8 @@ func conforms(schema map[string]any, value any, definitions map[string]any) bool
 				if !conforms(child, v, definitions) {
 					return false
 				}
+			} else if allowed, ok := schema["additionalProperties"].(bool); ok && !allowed {
+				return false
 			}
 		}
 		return true

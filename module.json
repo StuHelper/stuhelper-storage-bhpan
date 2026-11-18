@@ -13,7 +13,8 @@
   "scenario_tests": {
     "BH-01": [
       "client_test.go#TestSSOLoginAndSessionReset",
-      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx"
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
+      "client_resilience_test.go#TestCloseDoesNotBlockOnSlowAPIRequest"
     ],
     "BH-02": [
       "client_test.go#TestLocalLoginEncryptsCredentials",
@@ -24,7 +25,8 @@
       "client_test.go#TestResponseBoundsAndSafeErrors",
       "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess",
       "auth_redirect_test.go#TestSSOLoginDetectsCaptchaAndMFAChallenges",
-      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses"
+      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses",
+      "client_resilience_test.go#TestResponseBodyInterruptionAndContextCancellation"
     ],
     "BH-04": [
       "client_test.go#TestMetadataAndFileOperations",
@@ -37,18 +39,21 @@
       "transfer_stream_test.go#TestStreamTransfersOutliveRequestTimeoutAndAbortStalls",
       "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
       "transfer_stream_test.go#TestDownloadPreservesDestinationWriteErrors",
-      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx"
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
     ],
     "BH-06": [
       "protocol_test.go#TestMultipartProtocolAndCompletionFailure",
-      "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors"
+      "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
     ],
     "BH-07": [
       "protocol_test.go#TestShareTokenIsolationAndCRUD",
       "protocol_test.go#TestSharedDirectoryPreservesScopedChildren",
       "share_security_test.go#TestShareIDRejectsTraversalAndUnsafeCharacters",
       "share_security_test.go#TestSharePasswordRedactionAndValidation",
-      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize"
+      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize",
+      "client_resilience_test.go#TestContractValidatorCoversEscapedGNSNonAPIAndAdditionalProps"
     ],
     "BH-08": [
       "protocol_test.go#TestOptionalTransferOperations",
