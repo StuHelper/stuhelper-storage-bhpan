@@ -5,14 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -53,7 +56,7 @@ func (c *Client) trustedData(raw string) error {
 }
 func (c *Client) decodeGrant(raw []string, method string) (grant, error) {
 	g := grant{}
-	if len(raw) < 2 || raw[0] != method {
+	if len(raw) < 2 || raw[0] != method || (method == "GET" && len(raw) != 2) {
 		return g, ErrProtocol
 	}
 	if err := c.trustedData(raw[1]); err != nil {
@@ -62,9 +65,10 @@ func (c *Client) decodeGrant(raw []string, method string) (grant, error) {
 	g = grant{method: method, target: raw[1], headers: make(http.Header), deadline: time.Now().Add(10 * time.Minute)}
 	for _, line := range raw[2:] {
 		key, value, ok := strings.Cut(line, ":")
-		key = http.CanonicalHeaderKey(key)
+		key = http.CanonicalHeaderKey(strings.TrimSpace(key))
 		value = strings.TrimSpace(value)
-		if !ok || strings.ContainsAny(line, "\r\n") || g.headers.Get(key) != "" {
+		_, exists := g.headers[key]
+		if !ok || value == "" || strings.ContainsAny(line, "\r\n\x00") || exists {
 			return grant{}, ErrProtocol
 		}
 		switch key {
@@ -79,33 +83,137 @@ func (c *Client) decodeGrant(raw []string, method string) (grant, error) {
 	}
 	return g, nil
 }
+
+var errStreamIdle = errors.New("bhpan: stream idle timeout")
+
+type activityTimer struct {
+	mu      sync.Mutex
+	timeout time.Duration
+	timer   *time.Timer
+	stopped bool
+}
+
+func newActivityTimer(d time.Duration, onTimeout func()) *activityTimer {
+	a := &activityTimer{timeout: d}
+	a.timer = time.AfterFunc(d, onTimeout)
+	return a
+}
+
+func (a *activityTimer) touch() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.stopped {
+		a.timer.Reset(a.timeout)
+	}
+}
+
+func (a *activityTimer) pause() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.stopped {
+		a.timer.Stop()
+	}
+}
+
+func (a *activityTimer) stop() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.stopped {
+		a.stopped = true
+		a.timer.Stop()
+	}
+}
+
+type activityReader struct {
+	src   io.Reader
+	watch *activityTimer
+}
+
+func (r *activityReader) Read(p []byte) (int, error) {
+	r.watch.touch()
+	n, err := r.src.Read(p)
+	if n > 0 || err == io.EOF {
+		r.watch.touch()
+	}
+	return n, err
+}
+
+type idleResponseBody struct {
+	body   io.ReadCloser
+	watch  *activityTimer
+	cancel context.CancelCauseFunc
+}
+
+func (b *idleResponseBody) Read(p []byte) (int, error) {
+	b.watch.touch()
+	n, err := b.body.Read(p)
+	b.watch.pause()
+	return n, err
+}
+
+func (b *idleResponseBody) Close() error {
+	b.watch.stop()
+	err := b.body.Close()
+	b.cancel(nil)
+	return err
+}
+
 func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64) (*http.Response, error) {
+	if g.deadline.IsZero() {
+		return nil, ErrInput
+	}
 	if !g.deadline.After(time.Now()) {
-		return nil, ErrSession
+		return nil, &Error{"transfer", 0, ErrGrantExpired}
 	}
 	if e := c.trustedData(g.target); e != nil {
 		return nil, e
 	}
-	req, e := http.NewRequestWithContext(ctx, g.method, g.target, body)
+	reqCtx, cancel := context.WithCancelCause(ctx)
+	watch := newActivityTimer(c.timeout, func() { cancel(errStreamIdle) })
+	reqBody := body
+	if body != nil && body != http.NoBody {
+		reqBody = &activityReader{src: body, watch: watch}
+	}
+	req, e := http.NewRequestWithContext(reqCtx, g.method, g.target, reqBody)
 	if e != nil {
+		watch.stop()
+		cancel(nil)
 		return nil, ErrInput
 	}
 	req.Header = g.headers.Clone()
 	if body != nil {
 		req.ContentLength = length
 	}
-	hc := &http.Client{Transport: c.transport, Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	// Do not apply fixed total-request Timeout to object streams; watch enforces
+	// header and per-read/write idle timeouts while ctx bounds total duration.
+	hc := &http.Client{Transport: c.transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, e := hc.Do(req)
 	if e != nil {
+		watch.stop()
+		cancel(nil)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		return nil, &Error{"transfer", 0, ErrUnavailable}
 	}
-	if e = statusError("transfer", resp.StatusCode); e != nil {
+	watch.pause()
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		watch.stop()
 		resp.Body.Close()
+		cancel(nil)
+		return nil, &Error{"transfer", resp.StatusCode, ErrDestination}
+	}
+	e = statusError("transfer", resp.StatusCode)
+	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && g.headers.Get("Range") != "" {
+		e = &Error{"transfer", resp.StatusCode, ErrRejected}
+	}
+	if e != nil {
+		watch.stop()
+		resp.Body.Close()
+		cancel(nil)
 		return nil, e
 	}
+	resp.Body = &idleResponseBody{body: resp.Body, watch: watch, cancel: cancel}
 	return resp, nil
 }
 func (c *Client) BeginUpload(ctx context.Context, parent, name string, length int64) (Upload, error) {
@@ -123,19 +231,151 @@ func (c *Client) BeginUpload(ctx context.Context, parent, name string, length in
 		return state, err
 	}
 	if !textOK(out.ID) || !textOK(out.Rev) {
-		return state, ErrProtocol
+		return state, &Error{"upload-begin", 200, ErrProtocol}
 	}
 	state.grant, err = c.decodeGrant(out.Auth, "PUT")
-	return state, err
+	if err != nil {
+		return state, &Error{"upload-begin", 200, err}
+	}
+	return state, nil
 }
+
+// WriteUpload streams exactly u.length bytes to the signed object URL. Callers
+// must never invoke FinishUpload if WriteUpload returns an error.
 func (c *Client) WriteUpload(ctx context.Context, u Upload, src io.Reader) (string, error) {
 	return c.write(ctx, u.grant, src, u.length)
 }
+
+func checkKnownLength(src io.Reader, length int64) error {
+	if sr, ok := src.(interface{ Len() int }); ok {
+		if int64(sr.Len()) != length {
+			return ErrInput
+		}
+		return nil
+	}
+	seeker, ok := src.(io.Seeker)
+	if !ok {
+		return nil
+	}
+	if st, ok := src.(interface{ Stat() (os.FileInfo, error) }); ok {
+		info, err := st.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return nil
+		}
+		cur, err := seeker.Seek(0, io.SeekCurrent)
+		if err == nil && info.Size()-cur != length {
+			return ErrInput
+		}
+		return nil
+	}
+	cur, err := seeker.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil
+	}
+	end, endErr := seeker.Seek(0, io.SeekEnd)
+	if _, restoreErr := seeker.Seek(cur, io.SeekStart); restoreErr != nil {
+		return restoreErr
+	}
+	if endErr == nil && end-cur != length {
+		return ErrInput
+	}
+	return nil
+}
+
+// uploadBody tracks caller source errors and probes one byte past length before
+// releasing the final chunk so overlong HTTP/1.1 streams never commit truncated data.
+type uploadBody struct {
+	src  io.Reader
+	rem  int64
+	mu   sync.Mutex
+	err  error
+	done bool
+}
+
+func (u *uploadBody) recordErr(err error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.err == nil {
+		u.err = err
+	}
+}
+
+func (u *uploadBody) failure() error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.err
+}
+
+func (u *uploadBody) completed() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.done && u.err == nil
+}
+
+func (u *uploadBody) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	u.mu.Lock()
+	if u.err != nil {
+		err := u.err
+		u.mu.Unlock()
+		return 0, err
+	}
+	if u.done {
+		u.mu.Unlock()
+		return 0, io.EOF
+	}
+	rem := u.rem
+	u.mu.Unlock()
+
+	if int64(len(p)) > rem {
+		p = p[:int(rem)]
+	}
+	n, err := u.src.Read(p)
+	rem -= int64(n)
+	u.mu.Lock()
+	u.rem = rem
+	u.mu.Unlock()
+
+	if err != nil && err != io.EOF {
+		u.recordErr(err)
+		return 0, err
+	}
+	if rem > 0 {
+		if err == io.EOF {
+			u.recordErr(ErrInput)
+			return 0, ErrInput
+		}
+		return n, nil
+	}
+	if err == nil {
+		var extra [1]byte
+		m, probeErr := io.ReadFull(u.src, extra[:])
+		if m > 0 {
+			u.recordErr(ErrInput)
+			return 0, ErrInput
+		}
+		if probeErr != io.EOF && probeErr != io.ErrUnexpectedEOF {
+			u.recordErr(probeErr)
+			return 0, probeErr
+		}
+	}
+	u.mu.Lock()
+	u.done = true
+	u.mu.Unlock()
+	return n, io.EOF
+}
+
 func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64) (string, error) {
 	if src == nil || length < 0 || length == int64(^uint64(0)>>1) || g.method != "PUT" {
 		return "", ErrInput
 	}
-	var body io.Reader = io.LimitReader(src, length+1)
+	if err := checkKnownLength(src, length); err != nil {
+		return "", err
+	}
+	var body io.Reader = http.NoBody
+	var tracker *uploadBody
 	if length == 0 {
 		var probe [1]byte
 		n, err := io.ReadFull(src, probe[:])
@@ -145,19 +385,32 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 		if err != io.EOF {
 			return "", err
 		}
-		body = http.NoBody
+	} else {
+		tracker = &uploadBody{src: src, rem: length}
+		body = tracker
 	}
 	resp, e := c.data(ctx, g, body, length)
 	if e != nil {
+		if tracker != nil {
+			if srcErr := tracker.failure(); srcErr != nil {
+				return "", srcErr
+			}
+		}
 		return "", e
 	}
 	defer resp.Body.Close()
-	if _, e = limitedRead(resp.Body); e != nil {
+	if tracker != nil && !tracker.completed() {
+		if srcErr := tracker.failure(); srcErr != nil {
+			return "", srcErr
+		}
+		return "", ErrInput
+	}
+	if _, e = readResponseBody(ctx, "transfer", resp.StatusCode, resp.Body); e != nil {
 		return "", e
 	}
 	etag := strings.Trim(resp.Header.Get("ETag"), "\"")
 	if strings.ContainsAny(etag, "\r\n\x00\"") {
-		return "", ErrProtocol
+		return "", &Error{"transfer", resp.StatusCode, ErrProtocol}
 	}
 	return etag, nil
 }
@@ -171,7 +424,7 @@ func (c *Client) MultipartOptions(ctx context.Context) (MultipartOptions, error)
 	var out MultipartOptions
 	err := c.api(ctx, "multipart-options", "POST", "/api/efast/v1/file/osoption", nil, &out)
 	if err == nil && (out.MinimumSize <= 0 || out.MaximumSize < out.MinimumSize || out.MaximumParts <= 0) {
-		err = ErrProtocol
+		err = &Error{"multipart-options", 200, ErrProtocol}
 	}
 	return out, err
 }
@@ -187,7 +440,7 @@ func (c *Client) BeginMultipart(ctx context.Context, parent, name string, length
 	err := c.api(ctx, "multipart-begin", "POST", "/api/efast/v1/file/osinitmultiupload", map[string]any{"docid": parent, "name": name, "length": length, "ondup": 1}, &out)
 	u := MultipartUpload{out.ID, out.Rev, out.UploadID}
 	if err == nil && !u.valid() {
-		err = ErrProtocol
+		err = &Error{"multipart-begin", 200, ErrProtocol}
 	}
 	return u, err
 }
@@ -210,13 +463,13 @@ func (c *Client) PartGrants(ctx context.Context, u MultipartUpload, first, last 
 		return nil, err
 	}
 	if len(out.Auth) != last-first+1 {
-		return nil, ErrProtocol
+		return nil, &Error{"multipart-grants", 200, ErrProtocol}
 	}
 	grants := make([]PartGrant, 0, len(out.Auth))
 	for number := first; number <= last; number++ {
 		g, e := c.decodeGrant(out.Auth[strconv.Itoa(number)], "PUT")
 		if e != nil {
-			return nil, e
+			return nil, &Error{"multipart-grants", 200, e}
 		}
 		grants = append(grants, PartGrant{g, number})
 	}
@@ -228,7 +481,7 @@ func (c *Client) WritePart(ctx context.Context, g PartGrant, src io.Reader, leng
 	}
 	etag, err := c.write(ctx, g.grant, src, length)
 	if err == nil && !textOK(etag) {
-		err = ErrProtocol
+		err = &Error{"transfer", 200, ErrProtocol}
 	}
 	return Part{g.number, etag, length}, err
 }
@@ -249,15 +502,12 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	in := u.fields()
 	in["partinfo"] = info
 	encoded, _ := json.Marshal(in)
-	c.mu.RLock()
-	if c.token == "" {
-		c.mu.RUnlock()
-		return ErrSession
+	hc, token, err := c.sessionClient("multipart-prepare")
+	if err != nil {
+		return err
 	}
-	hc := *c.client
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	raw, headers, _, status, err := request(ctx, &hc, "multipart-prepare", "POST", c.cloud+"/api/efast/v1/file/oscompleteupload", "application/json", c.token, bytes.NewReader(encoded))
-	c.mu.RUnlock()
+	raw, headers, _, status, err := request(ctx, hc, "multipart-prepare", "POST", c.cloud+"/api/efast/v1/file/oscompleteupload", "application/json", token, bytes.NewReader(encoded))
 	if err != nil {
 		return err
 	}
@@ -266,7 +516,7 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	}
 	kind, params, err := mime.ParseMediaType(headers.Get("Content-Type"))
 	if err != nil || !strings.HasPrefix(kind, "multipart/") || params["boundary"] == "" {
-		return ErrProtocol
+		return &Error{"multipart-prepare", status, ErrProtocol}
 	}
 	reader := multipart.NewReader(bytes.NewReader(raw), params["boundary"])
 	var auth []string
@@ -277,53 +527,91 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 			break
 		}
 		if e != nil || count >= 2 {
-			return ErrProtocol
+			return &Error{"multipart-prepare", status, ErrProtocol}
 		}
 		b, e := limitedRead(p)
 		p.Close()
 		if e != nil {
-			return e
+			return &Error{"multipart-prepare", status, ErrProtocol}
 		}
 		if bytes.HasPrefix(bytes.TrimSpace(b), []byte("<")) {
 			if payload != nil {
-				return ErrProtocol
+				return &Error{"multipart-prepare", status, ErrProtocol}
 			}
 			payload = b
 		} else {
 			if auth != nil {
-				return ErrProtocol
+				return &Error{"multipart-prepare", status, ErrProtocol}
 			}
 			var v struct {
 				Auth []string `json:"authrequest"`
 			}
 			if json.Unmarshal(b, &v) != nil {
-				return ErrProtocol
+				return &Error{"multipart-prepare", status, ErrProtocol}
 			}
 			auth = v.Auth
 		}
 	}
 	if len(payload) == 0 {
-		return ErrProtocol
+		return &Error{"multipart-prepare", status, ErrProtocol}
 	}
 	g, err := c.decodeGrant(auth, "POST")
 	if err != nil {
-		return err
+		return &Error{"multipart-prepare", status, err}
 	}
 	resp, err := c.data(ctx, g, bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
 		return err
 	}
-	b, err := limitedRead(resp.Body)
+	b, err := readResponseBody(ctx, "transfer", resp.StatusCode, resp.Body)
 	resp.Body.Close()
 	if err != nil {
 		return err
 	}
 	var result struct{ XMLName xml.Name }
 	if xml.Unmarshal(b, &result) != nil || result.XMLName.Local != "CompleteMultipartUploadResult" {
-		return ErrProtocol
+		return &Error{"transfer", resp.StatusCode, ErrProtocol}
 	}
 	return c.FinishUpload(ctx, u.DocumentID, u.Revision)
 }
+
+type writerTracker struct {
+	dst io.Writer
+	err error
+}
+
+func (w *writerTracker) Write(p []byte) (int, error) {
+	n, err := w.dst.Write(p)
+	if err != nil {
+		if w.err == nil {
+			w.err = err
+		}
+		return n, err
+	}
+	if n != len(p) {
+		if w.err == nil {
+			w.err = io.ErrShortWrite
+		}
+		return n, io.ErrShortWrite
+	}
+	return n, nil
+}
+
+func copyStream(ctx context.Context, op string, status int, dst io.Writer, src io.Reader) (int64, error) {
+	tracker := &writerTracker{dst: dst}
+	n, err := io.Copy(tracker, src)
+	if err != nil {
+		if tracker.err != nil {
+			return n, tracker.err
+		}
+		if ctx.Err() != nil {
+			return n, ctx.Err()
+		}
+		return n, &Error{op, status, ErrUnavailable}
+	}
+	return n, nil
+}
+
 func (c *Client) Download(ctx context.Context, id string, dst io.Writer) (int64, error) {
 	return c.download(ctx, id, "", nil, dst)
 }
@@ -354,12 +642,5 @@ func (c *Client) download(ctx context.Context, id, token string, jar http.Cookie
 		return 0, err
 	}
 	defer resp.Body.Close()
-	n, err := io.Copy(dst, resp.Body)
-	if err != nil {
-		if ctx.Err() != nil {
-			return n, ctx.Err()
-		}
-		return n, &Error{"download-body", resp.StatusCode, ErrUnavailable}
-	}
-	return n, nil
+	return copyStream(ctx, "download-body", resp.StatusCode, dst, resp.Body)
 }

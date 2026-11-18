@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // DownloadInfo reports the copied byte count and object metadata returned by
@@ -116,30 +115,12 @@ func (c *Client) downloadRange(ctx context.Context, id, token string, jar http.C
 	if err != nil {
 		return DownloadInfo{}, err
 	}
-	if !g.deadline.After(time.Now()) {
-		return DownloadInfo{}, ErrSession
-	}
-	if err = c.trustedData(g.target); err != nil {
+	g.headers.Set("Range", rangeHeader)
+	resp, err := c.data(ctx, g, nil, 0)
+	if err != nil {
 		return DownloadInfo{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, g.method, g.target, nil)
-	if err != nil {
-		return DownloadInfo{}, ErrInput
-	}
-	req.Header = g.headers.Clone()
-	req.Header.Set("Range", rangeHeader)
-	hc := &http.Client{Transport: c.transport, Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := hc.Do(req)
-	if err != nil {
-		if ctx.Err() != nil {
-			return DownloadInfo{}, ctx.Err()
-		}
-		return DownloadInfo{}, &Error{"transfer", 0, ErrUnavailable}
-	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
-		return DownloadInfo{}, &Error{"transfer", resp.StatusCode, ErrRejected}
-	}
 	if resp.StatusCode != http.StatusPartialContent {
 		if e := statusError("transfer", resp.StatusCode); e != nil {
 			return DownloadInfo{}, e
@@ -155,9 +136,17 @@ func (c *Client) downloadRange(ctx context.Context, id, token string, jar http.C
 	if strings.ContainsAny(etag, "\r\n\x00\"") || strings.ContainsAny(contentType, "\r\n\x00") {
 		return DownloadInfo{}, &Error{"transfer", resp.StatusCode, ErrProtocol}
 	}
-	n, err := io.Copy(dst, io.LimitReader(resp.Body, expected+1))
+	n, err := copyStream(ctx, "download-body", resp.StatusCode, dst, io.LimitReader(resp.Body, expected))
 	info := DownloadInfo{Written: n, TotalSize: total, ContentType: contentType, ETag: etag}
 	if err != nil {
+		return info, err
+	}
+	var extra [1]byte
+	count, readErr := io.ReadFull(resp.Body, extra[:])
+	if count != 0 {
+		return info, &Error{"download-body", resp.StatusCode, ErrProtocol}
+	}
+	if readErr != io.EOF {
 		if ctx.Err() != nil {
 			return info, ctx.Err()
 		}
