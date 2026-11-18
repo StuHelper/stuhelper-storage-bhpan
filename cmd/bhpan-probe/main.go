@@ -41,55 +41,10 @@ func main() {
 		a := in.Accounts[i]
 		in.Accounts[i] = account{}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		c, err := bhpan.New(bhpan.Config{Timeout: 60 * time.Second})
-		if err == nil {
-			if a.Mode == "local" {
-				err = c.LoginLocal(ctx, a.Username, a.Password)
-			} else {
-				err = c.Login(ctx, a.Username, a.Password)
-			}
-		}
+		result, runFailed := probeAccount(ctx, bhpan.Config{Timeout: 60 * time.Second}, i+1, a, in)
 		a = account{}
-		result := map[string]any{"account": i + 1, "login": err == nil}
-		if err == nil {
-			identity, e := c.Identity(ctx)
-			err = e
-			result["identity_valid"] = e == nil && identity.ID != ""
-		}
-		if err == nil {
-			var libs []bhpan.Library
-			libs, err = c.Libraries(ctx)
-			if err == nil {
-				result["libraries"] = len(libs)
-				for _, lib := range libs {
-					if lib.Type == "user_doc_lib" {
-						result["personal_library_type"] = true
-					}
-				}
-			}
-			if err == nil {
-				q, e := c.Quota(ctx)
-				err = e
-				if e == nil {
-					result["quota_valid"] = q.Allocated >= 0 && q.Used >= 0
-				}
-			}
-			if err == nil && len(libs) > 0 {
-				_, err = c.List(ctx, libs[0].ID)
-				if err == nil {
-					result["root_list_valid"] = true
-				}
-			}
-			if err == nil && in.Files && len(libs) > 0 {
-				err = files(ctx, c, libs[0].ID, in, result)
-			}
-		}
-		if err != nil {
-			result["error"] = err.Error()
+		if runFailed {
 			failed = true
-		}
-		if c != nil {
-			c.Close()
 		}
 		cancel()
 		_ = json.NewEncoder(os.Stdout).Encode(result)
@@ -97,6 +52,84 @@ func main() {
 	if failed {
 		os.Exit(1)
 	}
+}
+
+func selectPersonalLibrary(libs []bhpan.Library) (string, error) {
+	personal := ""
+	for _, lib := range libs {
+		if lib.Type == "user_doc_lib" {
+			if personal != "" {
+				return "", errors.New("probe: ambiguous personal libraries")
+			}
+			personal = lib.ID
+		}
+	}
+	if personal == "" {
+		return "", errors.New("probe: personal library not found")
+	}
+	return personal, nil
+}
+
+func probeAccount(ctx context.Context, cfg bhpan.Config, index int, a account, in input) (map[string]any, bool) {
+	c, err := bhpan.New(cfg)
+	if err == nil {
+		if a.Mode == "local" {
+			err = c.LoginLocal(ctx, a.Username, a.Password)
+		} else {
+			err = c.Login(ctx, a.Username, a.Password)
+		}
+	}
+	a = account{}
+	result := map[string]any{"account": index, "login": err == nil}
+	if err == nil {
+		identity, e := c.Identity(ctx)
+		err = e
+		result["identity_valid"] = e == nil && identity.ID != ""
+	}
+	if err == nil {
+		var libs []bhpan.Library
+		var personalID string
+		var personalErr error
+		libs, err = c.Libraries(ctx)
+		if err == nil {
+			result["libraries"] = len(libs)
+			personalID, personalErr = selectPersonalLibrary(libs)
+			if personalID != "" {
+				result["personal_library_type"] = true
+			} else if personalErr != nil && strings.Contains(personalErr.Error(), "ambiguous") {
+				err = personalErr
+			}
+		}
+		if err == nil {
+			q, e := c.Quota(ctx)
+			err = e
+			if e == nil {
+				result["quota_valid"] = q.Allocated >= 0 && q.Used >= 0
+			}
+		}
+		if err == nil && personalID != "" {
+			_, err = c.List(ctx, personalID)
+			if err == nil {
+				result["root_list_valid"] = true
+			}
+		}
+		if err == nil && in.Files {
+			if personalErr != nil {
+				err = personalErr
+			} else {
+				err = files(ctx, c, personalID, in, result)
+			}
+		}
+	}
+	failed := false
+	if err != nil {
+		result["error"] = err.Error()
+		failed = true
+	}
+	if c != nil {
+		c.Close()
+	}
+	return result, failed
 }
 
 func files(ctx context.Context, c *bhpan.Client, root string, in input, result map[string]any) (err error) {
