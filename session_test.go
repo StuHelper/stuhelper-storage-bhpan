@@ -11,11 +11,11 @@ import (
 
 func TestRefreshSessionLifecycle(t *testing.T) {
 	mode := "rotate"
-	c, s := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+	c, s := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/anyshare/oauth2/login/refreshToken":
 			switch mode {
-			case "rotate":
+			case "rotate", "verify-503":
 				http.SetCookie(w, &http.Cookie{Name: "client.oauth2_token", Value: "rotated-token", Path: "/"})
 				fmt.Fprint(w, "ok")
 			case "unchanged":
@@ -38,6 +38,10 @@ func TestRefreshSessionLifecycle(t *testing.T) {
 		case "/oauth2/signin":
 			fmt.Fprint(w, "signin")
 		case "/api/efast/v1/owned-doc-lib":
+			if mode == "verify-503" {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
 			if mode == "verify-401" {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
@@ -89,6 +93,15 @@ func TestRefreshSessionLifecycle(t *testing.T) {
 	if c.token != "rotated-token" {
 		t.Fatal("transient failure should not wipe active token")
 	}
+
+	seed("before-rotation")
+	mode = "verify-503"
+	if err := c.RefreshSession(ctx); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("expected temporary verification failure, got %v", err)
+	}
+	mode = "unchanged"
+	_, err = c.Libraries(ctx)
+	check(t, err)
 
 	// 5. Permission 403 preserves ErrPermission classification.
 	mode = "forbidden-403"

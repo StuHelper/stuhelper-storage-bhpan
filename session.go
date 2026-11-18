@@ -42,6 +42,9 @@ func (c *Client) RefreshSession(ctx context.Context) error {
 		c.reset()
 		return &Error{Operation: "session-refresh", Status: status, Kind: ErrSession}
 	}
+	// The provider has already rotated its cookie. Keep bearer requests in sync
+	// even when verification fails temporarily. A definite expiry resets both.
+	c.token = nextToken
 	var roots []Library
 	if err := c.json(ctx, c.client, nextToken, "session-verify", "GET", "/api/efast/v1/owned-doc-lib", nil, &roots); err != nil {
 		if errors.Is(err, ErrSession) {
@@ -57,6 +60,5 @@ func (c *Client) RefreshSession(ctx context.Context) error {
 			return &Error{Operation: "session-verify", Status: 200, Kind: ErrProtocol}
 		}
 	}
-	c.token = nextToken
 	return nil
 }
