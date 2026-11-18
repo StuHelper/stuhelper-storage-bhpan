@@ -21,7 +21,7 @@ func TestErrorProviderCodeRetryAfterAndOperations(t *testing.T) {
 	// while stripping all provider diagnostic strings.
 	t.Run("api-subcode-and-retry-after", func(t *testing.T) {
 		step := 0
-		c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		c, _ := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) {
 			step++
 			switch step {
 			case 1:
@@ -32,6 +32,7 @@ func TestErrorProviderCodeRetryAfterAndOperations(t *testing.T) {
 				w.WriteHeader(http.StatusTooManyRequests)
 				reply(w, map[string]any{"error_code": 429001, "message": "secret-rate-limit-account"})
 			case 3:
+				w.Header().Set("Retry-After", "17")
 				// HTTP 200 envelope with numeric code vs string code.
 				reply(w, map[string]any{"code": 50012, "message": "secret-envelope-msg"})
 			default:
@@ -60,7 +61,7 @@ func TestErrorProviderCodeRetryAfterAndOperations(t *testing.T) {
 
 		err = c.Delete(ctx, "gns://root/file")
 		apiErr = nil
-		if !errors.Is(err, ErrRejected) || !errors.As(err, &apiErr) || apiErr.ProviderCode != 50012 {
+		if !errors.Is(err, ErrRejected) || !errors.As(err, &apiErr) || apiErr.ProviderCode != 50012 || apiErr.RetryAfter != 17*time.Second {
 			t.Fatalf("unexpected 200 envelope error: %+v (%v)", apiErr, err)
 		}
 

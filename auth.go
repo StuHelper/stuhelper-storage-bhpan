@@ -9,10 +9,23 @@ import (
 	"strings"
 )
 
-var inputTag = regexp.MustCompile(`(?is)<input\b[^>]*>`)
-var attribute = regexp.MustCompile(`(?is)([a-z_][a-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')`)
+var inputTag = regexp.MustCompile(`(?is)<input\b(?:[^>"']|"[^"]*"|'[^']*')*>`)
+var attribute = regexp.MustCompile(`(?is)\s+([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?`)
 
-func execution(body []byte) string {
+func isCASChallengeField(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "captcha", "captcharesponse", "j_captcha_response", "captcha_code", "vcode", "verifycode", "validatecode",
+		"otp", "totp", "mfa", "smscode", "dynamiccode", "authcode":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseLoginPage(body []byte) (ticket string, challenge bool) {
+	if strings.Contains(string(body), "continueForm") {
+		challenge = true
+	}
 	for _, tag := range inputTag.FindAll(body, -1) {
 		attrs := map[string]string{}
 		for _, a := range attribute.FindAllSubmatch(tag, -1) {
@@ -20,13 +33,20 @@ func execution(body []byte) string {
 			if value == "" {
 				value = string(a[3])
 			}
+			if value == "" {
+				value = string(a[4])
+			}
 			attrs[strings.ToLower(string(a[1]))] = html.UnescapeString(value)
 		}
-		if attrs["name"] == "execution" {
-			return attrs["value"]
+		if attrs["name"] == "execution" && ticket == "" {
+			ticket = attrs["value"]
+		}
+		_, disabled := attrs["disabled"]
+		if !disabled && strings.ToLower(attrs["type"]) != "hidden" && isCASChallengeField(attrs["name"]) {
+			challenge = true
 		}
 	}
-	return ""
+	return ticket, challenge
 }
 
 // Login uses BUAA CAS and AnyShare OAuth. A failed login always discards the
@@ -50,7 +70,10 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if err = responseError("login-page", status, pageHeaders, body); err != nil {
 		return err
 	}
-	ticket := execution(body)
+	ticket, challenge := parseLoginPage(body)
+	if challenge {
+		return &Error{Operation: "login-page", Status: status, Kind: ErrChallenge}
+	}
 	if ticket == "" {
 		return ErrProtocol
 	}
@@ -59,16 +82,22 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if err != nil {
 		return err
 	}
-	if strings.Contains(string(body), "continueForm") {
-		// Preserve the provider's explicit risk-acknowledgement step as a challenge.
-		// The caller must authorize it; a password alone does not imply consent.
-		return ErrChallenge
+	postTicket, postChallenge := parseLoginPage(body)
+	if postChallenge {
+		// Preserve risk-acknowledgement, captcha, and MFA steps as challenges.
+		// The caller must authorize interactive steps; a password alone does not imply consent.
+		return &Error{Operation: "login", Status: status, Kind: ErrChallenge}
 	}
-	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && execution(body) != "" {
-		return ErrCredentials
+	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && postTicket != "" {
+		return &Error{Operation: "login", Status: status, Kind: ErrCredentials}
 	}
-	portal, _ := url.Parse(headers.Get("Location"))
-	portalRedirect := status == http.StatusFound && portal != nil && portal.Hostname() == "uc.buaa.edu.cn" && portal.Path == "/"
+	portal, parseErr := final.Parse(headers.Get("Location"))
+	portalRedirect := (status == http.StatusFound || status == http.StatusSeeOther) &&
+		parseErr == nil && portal != nil &&
+		(portal.Scheme == "http" || portal.Scheme == "https") &&
+		portal.User == nil && portal.Fragment == "" &&
+		strings.EqualFold(portal.Hostname(), "uc.buaa.edu.cn") &&
+		(portal.Path == "" || strings.HasPrefix(portal.Path, "/"))
 	if !portalRedirect {
 		if err = responseError("login", status, headers, body); err != nil {
 			return err
