@@ -75,15 +75,6 @@ func (c *Client) List(ctx context.Context, id string) (Directory, error) {
 		return out, ErrInput
 	}
 	err := c.api(ctx, "list", "POST", "/api/efast/v1/dir/list", map[string]any{"docid": id, "by": "name", "sort": "asc"}, &out)
-	if err == nil {
-		for _, items := range [][]Entry{out.Directories, out.Files} {
-			for _, v := range items {
-				if !textOK(v.ID) || !textOK(v.Name) || v.Size < -1 {
-					return Directory{}, &Error{"list", 200, ErrProtocol}
-				}
-			}
-		}
-	}
 	return out, err
 }
 func (c *Client) DirectorySize(ctx context.Context, id string) (Size, error) {
@@ -92,9 +83,6 @@ func (c *Client) DirectorySize(ctx context.Context, id string) (Size, error) {
 		return out, ErrInput
 	}
 	err := c.api(ctx, "size", "POST", "/api/efast/v1/dir/size", map[string]any{"docid": id, "onlyrecycle": false}, &out)
-	if err == nil && (out.Bytes < 0 || out.Files < 0 || out.Directories < 0) {
-		err = &Error{"size", 200, ErrProtocol}
-	}
 	return out, err
 }
 func (c *Client) SuggestedName(ctx context.Context, id, name string) (string, error) {

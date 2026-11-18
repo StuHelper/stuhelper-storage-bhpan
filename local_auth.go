@@ -9,9 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // Public encryption key published by the provider's sign-in page. This is
@@ -26,7 +28,52 @@ t1a4pg6Xu9+HFcEuqwJTDxATvGAz1/YW0oUisjM0ObKTRDVSfnTYeaBsN6L+M+8g
 CwIDAQAB
 -----END PUBLIC KEY-----`
 
-var nextData = regexp.MustCompile(`(?s)<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+var scriptTag = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
+
+func resolveLocalPublicKey(override string) (*rsa.PublicKey, error) {
+	if override == "" {
+		key, err := parseLocalPublicKey(localPasswordKey)
+		if err != nil {
+			return nil, ErrProtocol
+		}
+		return key, nil
+	}
+	return parseLocalPublicKey(override)
+}
+
+func parseLocalPublicKey(raw string) (*rsa.PublicKey, error) {
+	trimmed := strings.TrimSpace(raw)
+	block, rest := pem.Decode([]byte(trimmed))
+	if block == nil || len(bytes.TrimSpace(rest)) != 0 || block.Type != "PUBLIC KEY" {
+		return nil, ErrInput
+	}
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, ErrInput
+	}
+	rsaKey, ok := parsed.(*rsa.PublicKey)
+	if !ok || rsaKey.N == nil || rsaKey.N.BitLen() < 2048 || rsaKey.E < 3 {
+		return nil, ErrInput
+	}
+	return rsaKey, nil
+}
+
+func extractNextData(body []byte) ([]byte, bool) {
+	for _, m := range scriptTag.FindAllSubmatch(body, -1) {
+		attrs := map[string]string{}
+		for _, a := range attribute.FindAllSubmatch(m[1], -1) {
+			value := string(a[2])
+			if value == "" {
+				value = string(a[3])
+			}
+			attrs[strings.ToLower(string(a[1]))] = html.UnescapeString(value)
+		}
+		if attrs["id"] == "__NEXT_DATA__" {
+			return m[2], true
+		}
+	}
+	return nil, false
+}
 
 func hasChallengeValue(v any) bool {
 	switch x := v.(type) {
@@ -101,7 +148,15 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 			c.reset()
 		}
 	}()
-	if !textOK(username) || len(username) > 128 || password == "" || len(password) > 245 {
+	key := c.localKey
+	if key == nil {
+		return ErrProtocol
+	}
+	maxPassword := key.Size() - 11
+	if maxPassword > 1024 {
+		maxPassword = 1024
+	}
+	if !textOK(username) || len(username) > 128 || password == "" || len(password) > maxPassword {
 		return ErrInput
 	}
 	body, _, final, status, err := request(ctx, c.client, "local-login-page", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
@@ -114,8 +169,8 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 	if originOf(final) != c.cloud || final.Path != "/oauth2/signin" {
 		return ErrProtocol
 	}
-	match := nextData.FindSubmatch(body)
-	if len(match) != 2 {
+	scriptPayload, ok := extractNextData(body)
+	if !ok {
 		return ErrProtocol
 	}
 	var page struct {
@@ -134,7 +189,7 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 			} `json:"pageProps"`
 		} `json:"props"`
 	}
-	if json.Unmarshal(match[1], &page) != nil {
+	if json.Unmarshal(scriptPayload, &page) != nil {
 		return ErrProtocol
 	}
 	p := page.Props.PageProps
@@ -149,15 +204,7 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 			return ErrChallenge
 		}
 	}
-	block, _ := pem.Decode([]byte(localPasswordKey))
-	if block == nil {
-		return ErrProtocol
-	}
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return ErrProtocol
-	}
-	encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, key.(*rsa.PublicKey), []byte(password))
+	encrypted, err := rsa.EncryptPKCS1v15(rand.Reader, key, []byte(password))
 	if err != nil {
 		return ErrInput
 	}

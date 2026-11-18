@@ -3,6 +3,7 @@ package bhpan
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"io"
@@ -19,11 +20,12 @@ const metadataLimit = 4 << 20
 // Config accepts trusted operator configuration. Credentials are supplied only
 // to Login, and are not retained by the adapter.
 type Config struct {
-	CloudURL    string
-	SSOURL      string
-	Transport   http.RoundTripper
-	Timeout     time.Duration
-	DataOrigins []string
+	CloudURL          string
+	SSOURL            string
+	Transport         http.RoundTripper
+	Timeout           time.Duration
+	DataOrigins       []string
+	LocalPublicKeyPEM string
 }
 
 type Client struct {
@@ -33,6 +35,7 @@ type Client struct {
 	transport  http.RoundTripper
 	timeout    time.Duration
 	origins    map[string]bool
+	localKey   *rsa.PublicKey
 	token      string
 }
 
@@ -57,7 +60,11 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Timeout < 0 {
 		return nil, ErrInput
 	}
-	c := &Client{cloud: cloud, sso: sso, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}}
+	localKey, err := resolveLocalPublicKey(cfg.LocalPublicKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{cloud: cloud, sso: sso, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}, localKey: localKey}
 	for _, raw := range cfg.DataOrigins {
 		origin, err := parseOrigin(raw)
 		if err != nil {
