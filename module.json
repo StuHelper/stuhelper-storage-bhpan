@@ -72,6 +72,9 @@
     ],
     "BH-11": [
       "range_test.go#TestDownloadRangeAndSharedRange"
+    ],
+    "BH-12": [
+      "session_test.go#TestRefreshSessionLifecycle"
     ]
   }
 }
