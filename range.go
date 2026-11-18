@@ -116,25 +116,25 @@ func (c *Client) downloadRange(ctx context.Context, id, token string, jar http.C
 		return DownloadInfo{}, err
 	}
 	g.headers.Set("Range", rangeHeader)
-	resp, err := c.data(ctx, g, nil, 0)
+	resp, err := c.data(ctx, "download-data", g, nil, 0)
 	if err != nil {
 		return DownloadInfo{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusPartialContent {
-		if e := statusError("transfer", resp.StatusCode); e != nil {
+		if e := statusError("download-data", resp.StatusCode); e != nil {
 			return DownloadInfo{}, e
 		}
-		return DownloadInfo{}, &Error{"transfer", resp.StatusCode, ErrProtocol}
+		return DownloadInfo{}, &Error{Operation: "download-data", Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	expected, total, err := parseContentRange(resp.Header.Get("Content-Range"), offset, length)
 	if err != nil {
-		return DownloadInfo{}, &Error{"transfer", resp.StatusCode, err}
+		return DownloadInfo{}, &Error{Operation: "download-data", Status: resp.StatusCode, Kind: err}
 	}
 	etag := strings.Trim(resp.Header.Get("ETag"), "\"")
 	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	if strings.ContainsAny(etag, "\r\n\x00\"") || strings.ContainsAny(contentType, "\r\n\x00") {
-		return DownloadInfo{}, &Error{"transfer", resp.StatusCode, ErrProtocol}
+		return DownloadInfo{}, &Error{Operation: "download-data", Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	n, err := copyStream(ctx, "download-body", resp.StatusCode, dst, io.LimitReader(resp.Body, expected))
 	info := DownloadInfo{Written: n, TotalSize: total, ContentType: contentType, ETag: etag}
@@ -144,16 +144,16 @@ func (c *Client) downloadRange(ctx context.Context, id, token string, jar http.C
 	var extra [1]byte
 	count, readErr := io.ReadFull(resp.Body, extra[:])
 	if count != 0 {
-		return info, &Error{"download-body", resp.StatusCode, ErrProtocol}
+		return info, &Error{Operation: "download-body", Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	if readErr != io.EOF {
 		if ctx.Err() != nil {
 			return info, ctx.Err()
 		}
-		return info, &Error{"download-body", resp.StatusCode, ErrUnavailable}
+		return info, &Error{Operation: "download-body", Status: resp.StatusCode, Kind: ErrUnavailable}
 	}
 	if n != expected {
-		return info, &Error{"download-body", resp.StatusCode, ErrProtocol}
+		return info, &Error{Operation: "download-body", Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	return info, nil
 }

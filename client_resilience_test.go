@@ -174,7 +174,7 @@ func TestGrantHeaderStrictnessAndExpirationDistinctFromSession(t *testing.T) {
 	}, "PUT")
 	check(t, err)
 	g.deadline = time.Now().Add(-time.Second)
-	_, err = c.data(context.Background(), g, bytes.NewReader([]byte("x")), 1)
+	_, err = c.data(context.Background(), "upload-write", g, bytes.NewReader([]byte("x")), 1)
 	if !errors.Is(err, ErrGrantExpired) || errors.Is(err, ErrSession) {
 		t.Fatalf("expired local grant must report ErrGrantExpired and not ErrSession, got %v", err)
 	}

@@ -127,12 +127,12 @@ func readResponseBody(ctx context.Context, op string, status int, r io.Reader) (
 	b, e := io.ReadAll(io.LimitReader(r, metadataLimit+1))
 	if e != nil {
 		if ctx.Err() != nil {
-			return nil, &Error{op, status, ctx.Err()}
+			return nil, &Error{Operation: op, Status: status, Kind: ctx.Err()}
 		}
-		return nil, &Error{op, status, ErrUnavailable}
+		return nil, &Error{Operation: op, Status: status, Kind: ErrUnavailable}
 	}
 	if len(b) > metadataLimit {
-		return nil, &Error{op, status, ErrProtocol}
+		return nil, &Error{Operation: op, Status: status, Kind: ErrProtocol}
 	}
 	return b, nil
 }
@@ -148,7 +148,7 @@ func limitedRead(r io.Reader) ([]byte, error) {
 func request(ctx context.Context, hc *http.Client, operation, method, target, contentType, token string, body io.Reader) ([]byte, http.Header, *url.URL, int, error) {
 	req, e := http.NewRequestWithContext(ctx, method, target, body)
 	if e != nil {
-		return nil, nil, nil, 0, &Error{operation, 0, ErrInput}
+		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: ErrInput}
 	}
 	req.Header.Set("User-Agent", "StuHelper-Next-BHpan/0.1")
 	if contentType != "" {
@@ -167,7 +167,7 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 		} else if errors.Is(e, ErrProtocol) {
 			kind = ErrProtocol
 		}
-		return nil, nil, nil, 0, &Error{operation, 0, kind}
+		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: kind}
 	}
 	defer resp.Body.Close()
 	data, e := readResponseBody(ctx, operation, resp.StatusCode, resp.Body)
@@ -178,9 +178,17 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 }
 
 func statusError(op string, status int) error {
+	return responseError(op, status, nil, nil)
+}
+
+func responseError(op string, status int, headers http.Header, body []byte) error {
 	if status >= 200 && status < 300 {
 		return nil
 	}
+	return providerFailure(op, status, headers, body)
+}
+
+func providerFailure(op string, status int, headers http.Header, body []byte) *Error {
 	kind := ErrUnavailable
 	switch status {
 	case 401:
@@ -194,7 +202,13 @@ func statusError(op string, status int) error {
 	case 400, 422:
 		kind = ErrRejected
 	}
-	return &Error{op, status, kind}
+	return &Error{
+		Operation:    op,
+		Status:       status,
+		Kind:         kind,
+		ProviderCode: extractProviderCode(body),
+		RetryAfter:   parseRetryAfterAt(headers, time.Now()),
+	}
 }
 
 func (c *Client) sessionClient(op string) (*http.Client, string, error) {
@@ -206,7 +220,7 @@ func (c *Client) sessionClient(op string) (*http.Client, string, error) {
 	}
 	c.mu.RUnlock()
 	if token == "" {
-		return nil, "", &Error{op, 0, ErrSession}
+		return nil, "", &Error{Operation: op, Status: 0, Kind: ErrSession}
 	}
 	return &hc, token, nil
 }
@@ -231,31 +245,31 @@ func (c *Client) json(ctx context.Context, hc *http.Client, token, op, method, p
 	// API calls must never turn a redirect/login HTML page into an apparent success.
 	local := *hc
 	local.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	b, _, _, status, e := request(ctx, &local, op, method, c.cloud+path, "application/json", token, body)
+	b, headers, _, status, e := request(ctx, &local, op, method, c.cloud+path, "application/json", token, body)
 	if e != nil {
 		return e
 	}
-	if e = statusError(op, status); e != nil {
+	if e = responseError(op, status, headers, b); e != nil {
 		return e
 	}
 	trimmed := bytes.TrimSpace(b)
 	if len(trimmed) > 0 {
 		if !json.Valid(trimmed) || bytes.Equal(trimmed, []byte("false")) {
-			return &Error{op, status, ErrProtocol}
+			return &Error{Operation: op, Status: status, Kind: ErrProtocol}
 		}
 		var envelope map[string]json.RawMessage
 		if json.Unmarshal(trimmed, &envelope) == nil {
 			for _, key := range []string{"code", "error_code", "error"} {
 				value := bytes.TrimSpace(envelope[key])
 				if len(value) > 0 && !bytes.Equal(value, []byte("0")) && !bytes.Equal(value, []byte("null")) && !bytes.Equal(value, []byte(`""`)) {
-					return &Error{op, status, ErrRejected}
+					return &Error{Operation: op, Status: status, Kind: ErrRejected, ProviderCode: extractProviderCode(trimmed), RetryAfter: parseRetryAfterAt(headers, time.Now())}
 				}
 			}
 		}
 	}
 	if out != nil {
 		if len(bytes.TrimSpace(b)) == 0 || bytes.Equal(bytes.TrimSpace(b), []byte("null")) || json.Unmarshal(b, out) != nil {
-			return &Error{op, status, ErrProtocol}
+			return &Error{Operation: op, Status: status, Kind: ErrProtocol}
 		}
 	}
 	return nil

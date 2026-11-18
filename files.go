@@ -48,7 +48,7 @@ func (c *Client) Libraries(ctx context.Context) ([]Library, error) {
 	if err == nil {
 		for _, e := range out {
 			if !textOK(e.ID) {
-				return nil, &Error{"libraries", 200, ErrProtocol}
+				return nil, &Error{Operation: "libraries", Status: 200, Kind: ErrProtocol}
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func (c *Client) Quota(ctx context.Context) (Quota, error) {
 		return Quota{}, err
 	}
 	if out.Allocated == nil || out.Used == nil || *out.Allocated < 0 || *out.Used < 0 {
-		return Quota{}, &Error{"quota", 200, ErrProtocol}
+		return Quota{}, &Error{Operation: "quota", Status: 200, Kind: ErrProtocol}
 	}
 	// An account may be over quota after the provider reduces its allocation.
 	return Quota{*out.Allocated, *out.Used}, nil
@@ -94,7 +94,7 @@ func (c *Client) SuggestedName(ctx context.Context, id, name string) (string, er
 	}
 	err := c.api(ctx, "suggest-name", "POST", "/api/efast/v1/file/getsuggestname", map[string]any{"docid": id, "name": name}, &out)
 	if err == nil && !nameOK(out.Name) {
-		err = &Error{"suggest-name", 200, ErrProtocol}
+		err = &Error{Operation: "suggest-name", Status: 200, Kind: ErrProtocol}
 	}
 	return out.Name, err
 }
@@ -113,7 +113,7 @@ func (c *Client) change(ctx context.Context, op, path string, in map[string]any,
 	}
 	err := c.api(ctx, op, "POST", "/api/efast/v1/"+path, in, target)
 	if err == nil && wantID && !textOK(out.ID) {
-		err = &Error{op, 200, ErrProtocol}
+		err = &Error{Operation: op, Status: 200, Kind: ErrProtocol}
 	}
 	return out.ID, err
 }

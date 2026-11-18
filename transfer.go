@@ -158,12 +158,12 @@ func (b *idleResponseBody) Close() error {
 	return err
 }
 
-func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64) (*http.Response, error) {
+func (c *Client) data(ctx context.Context, op string, g grant, body io.Reader, length int64) (*http.Response, error) {
 	if g.deadline.IsZero() {
 		return nil, ErrInput
 	}
 	if !g.deadline.After(time.Now()) {
-		return nil, &Error{"transfer", 0, ErrGrantExpired}
+		return nil, &Error{Operation: op, Status: 0, Kind: ErrGrantExpired}
 	}
 	if e := c.trustedData(g.target); e != nil {
 		return nil, e
@@ -194,26 +194,29 @@ func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, &Error{"transfer", 0, ErrUnavailable}
+		return nil, &Error{Operation: op, Status: 0, Kind: ErrUnavailable}
 	}
 	watch.pause()
-	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-		watch.stop()
-		resp.Body.Close()
-		cancel(nil)
-		return nil, &Error{"transfer", resp.StatusCode, ErrDestination}
-	}
-	e = statusError("transfer", resp.StatusCode)
-	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && g.headers.Get("Range") != "" {
-		e = &Error{"transfer", resp.StatusCode, ErrRejected}
-	}
-	if e != nil {
-		watch.stop()
-		resp.Body.Close()
-		cancel(nil)
-		return nil, e
-	}
 	resp.Body = &idleResponseBody{body: resp.Body, watch: watch, cancel: cancel}
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		resp.Body.Close()
+		return nil, &Error{Operation: op, Status: resp.StatusCode, Kind: ErrDestination}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		body, readErr := readResponseBody(ctx, op, resp.StatusCode, resp.Body)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if readErr != nil {
+			body = nil
+		}
+		result := providerFailure(op, resp.StatusCode, resp.Header, body)
+		if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && g.headers.Get("Range") != "" {
+			result.Kind = ErrRejected
+		}
+		return nil, result
+	}
 	return resp, nil
 }
 func (c *Client) BeginUpload(ctx context.Context, parent, name string, length int64) (Upload, error) {
@@ -231,11 +234,11 @@ func (c *Client) BeginUpload(ctx context.Context, parent, name string, length in
 		return state, err
 	}
 	if !textOK(out.ID) || !textOK(out.Rev) {
-		return state, &Error{"upload-begin", 200, ErrProtocol}
+		return state, &Error{Operation: "upload-begin", Status: 200, Kind: ErrProtocol}
 	}
 	state.grant, err = c.decodeGrant(out.Auth, "PUT")
 	if err != nil {
-		return state, &Error{"upload-begin", 200, err}
+		return state, &Error{Operation: "upload-begin", Status: 200, Kind: err}
 	}
 	return state, nil
 }
@@ -243,7 +246,7 @@ func (c *Client) BeginUpload(ctx context.Context, parent, name string, length in
 // WriteUpload streams exactly u.length bytes to the signed object URL. Callers
 // must never invoke FinishUpload if WriteUpload returns an error.
 func (c *Client) WriteUpload(ctx context.Context, u Upload, src io.Reader) (string, error) {
-	return c.write(ctx, u.grant, src, u.length)
+	return c.write(ctx, "upload-write", u.grant, src, u.length)
 }
 
 func checkKnownLength(src io.Reader, length int64) error {
@@ -367,7 +370,7 @@ func (u *uploadBody) Read(p []byte) (int, error) {
 	return n, io.EOF
 }
 
-func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64) (string, error) {
+func (c *Client) write(ctx context.Context, op string, g grant, src io.Reader, length int64) (string, error) {
 	if src == nil || length < 0 || length == int64(^uint64(0)>>1) || g.method != "PUT" {
 		return "", ErrInput
 	}
@@ -389,7 +392,7 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 		tracker = &uploadBody{src: src, rem: length}
 		body = tracker
 	}
-	resp, e := c.data(ctx, g, body, length)
+	resp, e := c.data(ctx, op, g, body, length)
 	if e != nil {
 		if tracker != nil {
 			if srcErr := tracker.failure(); srcErr != nil {
@@ -405,12 +408,12 @@ func (c *Client) write(ctx context.Context, g grant, src io.Reader, length int64
 		}
 		return "", ErrInput
 	}
-	if _, e = readResponseBody(ctx, "transfer", resp.StatusCode, resp.Body); e != nil {
+	if _, e = readResponseBody(ctx, op, resp.StatusCode, resp.Body); e != nil {
 		return "", e
 	}
 	etag := strings.Trim(resp.Header.Get("ETag"), "\"")
 	if strings.ContainsAny(etag, "\r\n\x00\"") {
-		return "", &Error{"transfer", resp.StatusCode, ErrProtocol}
+		return "", &Error{Operation: op, Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	return etag, nil
 }
@@ -424,7 +427,7 @@ func (c *Client) MultipartOptions(ctx context.Context) (MultipartOptions, error)
 	var out MultipartOptions
 	err := c.api(ctx, "multipart-options", "POST", "/api/efast/v1/file/osoption", nil, &out)
 	if err == nil && (out.MinimumSize <= 0 || out.MaximumSize < out.MinimumSize || out.MaximumParts <= 0) {
-		err = &Error{"multipart-options", 200, ErrProtocol}
+		err = &Error{Operation: "multipart-options", Status: 200, Kind: ErrProtocol}
 	}
 	return out, err
 }
@@ -440,7 +443,7 @@ func (c *Client) BeginMultipart(ctx context.Context, parent, name string, length
 	err := c.api(ctx, "multipart-begin", "POST", "/api/efast/v1/file/osinitmultiupload", map[string]any{"docid": parent, "name": name, "length": length, "ondup": 1}, &out)
 	u := MultipartUpload{out.ID, out.Rev, out.UploadID}
 	if err == nil && !u.valid() {
-		err = &Error{"multipart-begin", 200, ErrProtocol}
+		err = &Error{Operation: "multipart-begin", Status: 200, Kind: ErrProtocol}
 	}
 	return u, err
 }
@@ -463,13 +466,13 @@ func (c *Client) PartGrants(ctx context.Context, u MultipartUpload, first, last 
 		return nil, err
 	}
 	if len(out.Auth) != last-first+1 {
-		return nil, &Error{"multipart-grants", 200, ErrProtocol}
+		return nil, &Error{Operation: "multipart-grants", Status: 200, Kind: ErrProtocol}
 	}
 	grants := make([]PartGrant, 0, len(out.Auth))
 	for number := first; number <= last; number++ {
 		g, e := c.decodeGrant(out.Auth[strconv.Itoa(number)], "PUT")
 		if e != nil {
-			return nil, &Error{"multipart-grants", 200, e}
+			return nil, &Error{Operation: "multipart-grants", Status: 200, Kind: e}
 		}
 		grants = append(grants, PartGrant{g, number})
 	}
@@ -479,9 +482,9 @@ func (c *Client) WritePart(ctx context.Context, g PartGrant, src io.Reader, leng
 	if length <= 0 || g.number < 1 {
 		return Part{}, ErrInput
 	}
-	etag, err := c.write(ctx, g.grant, src, length)
+	etag, err := c.write(ctx, "part-write", g.grant, src, length)
 	if err == nil && !textOK(etag) {
-		err = &Error{"transfer", 200, ErrProtocol}
+		err = &Error{Operation: "part-write", Status: 200, Kind: ErrProtocol}
 	}
 	return Part{g.number, etag, length}, err
 }
@@ -511,12 +514,12 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 	if err != nil {
 		return err
 	}
-	if err = statusError("multipart-prepare", status); err != nil {
+	if err = responseError("multipart-prepare", status, headers, raw); err != nil {
 		return err
 	}
 	kind, params, err := mime.ParseMediaType(headers.Get("Content-Type"))
 	if err != nil || !strings.HasPrefix(kind, "multipart/") || params["boundary"] == "" {
-		return &Error{"multipart-prepare", status, ErrProtocol}
+		return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 	}
 	reader := multipart.NewReader(bytes.NewReader(raw), params["boundary"])
 	var auth []string
@@ -527,50 +530,50 @@ func (c *Client) CompleteMultipart(ctx context.Context, u MultipartUpload, parts
 			break
 		}
 		if e != nil || count >= 2 {
-			return &Error{"multipart-prepare", status, ErrProtocol}
+			return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 		}
 		b, e := limitedRead(p)
 		p.Close()
 		if e != nil {
-			return &Error{"multipart-prepare", status, ErrProtocol}
+			return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 		}
 		if bytes.HasPrefix(bytes.TrimSpace(b), []byte("<")) {
 			if payload != nil {
-				return &Error{"multipart-prepare", status, ErrProtocol}
+				return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 			}
 			payload = b
 		} else {
 			if auth != nil {
-				return &Error{"multipart-prepare", status, ErrProtocol}
+				return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 			}
 			var v struct {
 				Auth []string `json:"authrequest"`
 			}
 			if json.Unmarshal(b, &v) != nil {
-				return &Error{"multipart-prepare", status, ErrProtocol}
+				return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 			}
 			auth = v.Auth
 		}
 	}
 	if len(payload) == 0 {
-		return &Error{"multipart-prepare", status, ErrProtocol}
+		return &Error{Operation: "multipart-prepare", Status: status, Kind: ErrProtocol}
 	}
 	g, err := c.decodeGrant(auth, "POST")
 	if err != nil {
-		return &Error{"multipart-prepare", status, err}
+		return &Error{Operation: "multipart-prepare", Status: status, Kind: err}
 	}
-	resp, err := c.data(ctx, g, bytes.NewReader(payload), int64(len(payload)))
+	resp, err := c.data(ctx, "multipart-complete", g, bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
 		return err
 	}
-	b, err := readResponseBody(ctx, "transfer", resp.StatusCode, resp.Body)
+	b, err := readResponseBody(ctx, "multipart-complete", resp.StatusCode, resp.Body)
 	resp.Body.Close()
 	if err != nil {
 		return err
 	}
 	var result struct{ XMLName xml.Name }
 	if xml.Unmarshal(b, &result) != nil || result.XMLName.Local != "CompleteMultipartUploadResult" {
-		return &Error{"transfer", resp.StatusCode, ErrProtocol}
+		return &Error{Operation: "multipart-complete", Status: resp.StatusCode, Kind: ErrProtocol}
 	}
 	return c.FinishUpload(ctx, u.DocumentID, u.Revision)
 }
@@ -607,7 +610,7 @@ func copyStream(ctx context.Context, op string, status int, dst io.Writer, src i
 		if ctx.Err() != nil {
 			return n, ctx.Err()
 		}
-		return n, &Error{op, status, ErrUnavailable}
+		return n, &Error{Operation: op, Status: status, Kind: ErrUnavailable}
 	}
 	return n, nil
 }
@@ -637,7 +640,7 @@ func (c *Client) download(ctx context.Context, id, token string, jar http.Cookie
 	if err != nil {
 		return 0, err
 	}
-	resp, err := c.data(ctx, g, nil, 0)
+	resp, err := c.data(ctx, "download-data", g, nil, 0)
 	if err != nil {
 		return 0, err
 	}

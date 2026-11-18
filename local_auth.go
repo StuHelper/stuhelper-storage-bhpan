@@ -159,11 +159,11 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 	if !textOK(username) || len(username) > 128 || password == "" || len(password) > maxPassword {
 		return ErrInput
 	}
-	body, _, final, status, err := request(ctx, c.client, "local-login-page", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
+	body, pageHeaders, final, status, err := request(ctx, c.client, "local-login-page", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("local-login-page", status); err != nil {
+	if err = responseError("local-login-page", status, pageHeaders, body); err != nil {
 		return err
 	}
 	if originOf(final) != c.cloud || final.Path != "/oauth2/signin" {
@@ -212,17 +212,17 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 	encoded, _ := json.Marshal(payload)
 	local := *c.client
 	local.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	body, _, _, status, err = request(ctx, &local, "local-login", "POST", c.cloud+"/oauth2/signin", "application/json", "", bytes.NewReader(encoded))
+	body, loginHeaders, _, status, err := request(ctx, &local, "local-login", "POST", c.cloud+"/oauth2/signin", "application/json", "", bytes.NewReader(encoded))
 	if err != nil {
 		return err
 	}
 	if status == 400 || status == 401 || status == 403 {
 		if localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After) {
-			return &Error{"local-login", status, ErrChallenge}
+			return &Error{Operation: "local-login", Status: status, Kind: ErrChallenge}
 		}
-		return &Error{"local-login", status, ErrCredentials}
+		return &Error{Operation: "local-login", Status: status, Kind: ErrCredentials}
 	}
-	if err = statusError("local-login", status); err != nil {
+	if err = responseError("local-login", status, loginHeaders, body); err != nil {
 		return err
 	}
 	var reply struct {
@@ -230,7 +230,7 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 	}
 	if json.Unmarshal(body, &reply) != nil || reply.Redirect == "" {
 		if localSigninChallenge(body, p.Auth.Captcha.Enabled, p.Auth.Captcha.After) {
-			return &Error{"local-login", status, ErrChallenge}
+			return &Error{Operation: "local-login", Status: status, Kind: ErrChallenge}
 		}
 		return ErrProtocol
 	}
@@ -238,11 +238,11 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 	if e != nil || dest.User != nil || originOf(dest) != c.cloud || dest.Fragment != "" {
 		return ErrDestination
 	}
-	_, _, final, status, err = request(ctx, c.client, "local-callback", "GET", dest.String(), "", "", nil)
+	cbBody, cbHeaders, final, status, err := request(ctx, c.client, "local-callback", "GET", dest.String(), "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("local-callback", status); err != nil {
+	if err = responseError("local-callback", status, cbHeaders, cbBody); err != nil {
 		return err
 	}
 	if originOf(final) != c.cloud || final.Path != "/anyshare/oauth2/login/callback" {

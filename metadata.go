@@ -39,7 +39,7 @@ func (c *Client) FileInfo(ctx context.Context, id string) (FileMetadata, error) 
 		return FileMetadata{}, err
 	}
 	if out.ID != id || out.Type != "file" || !textOK(out.DocumentID) || !textOK(out.Name) || !textOK(out.Revision) || out.Size == nil || *out.Size < 0 || !textOK(out.Library.ID) {
-		return FileMetadata{}, &Error{"file-info", 200, ErrProtocol}
+		return FileMetadata{}, &Error{Operation: "file-info", Status: 200, Kind: ErrProtocol}
 	}
 	return FileMetadata{ObjectID: id, DocumentID: out.DocumentID, Name: out.Name, Revision: out.Revision, Size: *out.Size, LibraryID: out.Library.ID}, nil
 }

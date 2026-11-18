@@ -63,16 +63,16 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if !textOK(username) || len(username) > 128 || password == "" || len(password) > 1024 {
 		return ErrInput
 	}
-	body, _, _, status, err := request(ctx, c.client, "login-page", "GET", c.sso+"/login", "", "", nil)
+	body, pageHeaders, _, status, err := request(ctx, c.client, "login-page", "GET", c.sso+"/login", "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("login-page", status); err != nil {
+	if err = responseError("login-page", status, pageHeaders, body); err != nil {
 		return err
 	}
 	ticket, challenge := parseLoginPage(body)
 	if challenge {
-		return &Error{"login-page", status, ErrChallenge}
+		return &Error{Operation: "login-page", Status: status, Kind: ErrChallenge}
 	}
 	if ticket == "" {
 		return ErrProtocol
@@ -86,10 +86,10 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 	if postChallenge {
 		// Preserve risk-acknowledgement, captcha, and MFA steps as challenges.
 		// The caller must authorize interactive steps; a password alone does not imply consent.
-		return &Error{"login", status, ErrChallenge}
+		return &Error{Operation: "login", Status: status, Kind: ErrChallenge}
 	}
 	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && postTicket != "" {
-		return &Error{"login", status, ErrCredentials}
+		return &Error{Operation: "login", Status: status, Kind: ErrCredentials}
 	}
 	portal, parseErr := final.Parse(headers.Get("Location"))
 	portalRedirect := (status == http.StatusFound || status == http.StatusSeeOther) &&
@@ -99,15 +99,15 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 		strings.EqualFold(portal.Hostname(), "uc.buaa.edu.cn") &&
 		(portal.Path == "" || strings.HasPrefix(portal.Path, "/"))
 	if !portalRedirect {
-		if err = statusError("login", status); err != nil {
+		if err = responseError("login", status, headers, body); err != nil {
 			return err
 		}
 	}
-	_, _, final, status, err = request(ctx, c.client, "oauth", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
+	oauthBody, oauthHeaders, final, status, err := request(ctx, c.client, "oauth", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("oauth", status); err != nil {
+	if err = responseError("oauth", status, oauthHeaders, oauthBody); err != nil {
 		return err
 	}
 	if originOf(final) != c.cloud {
@@ -121,23 +121,23 @@ func (c *Client) Login(ctx context.Context, username, password string) (err erro
 		}
 		base, _ := url.Parse(c.cloud)
 		c.client.Jar.SetCookies(base, []*http.Cookie{{Name: "login_challenge", Value: challenge, Path: "/", Secure: true}})
-		_, _, final, status, err = request(ctx, c.client, "oauth-callback", "GET", c.sso+"/login?"+url.Values{"service": {c.cloud + "/oauth2/signin"}}.Encode(), "", "", nil)
+		cbBody, cbHeaders, final, status, err := request(ctx, c.client, "oauth-callback", "GET", c.sso+"/login?"+url.Values{"service": {c.cloud + "/oauth2/signin"}}.Encode(), "", "", nil)
 		c.client.Jar.SetCookies(base, []*http.Cookie{{Name: "login_challenge", Value: "", Path: "/", Secure: true, MaxAge: -1}})
 		if err != nil {
 			return err
 		}
-		if err = statusError("oauth-callback", status); err != nil {
+		if err = responseError("oauth-callback", status, cbHeaders, cbBody); err != nil {
 			return err
 		}
 		if originOf(final) != c.cloud || final.Path != "/anyshare/oauth2/login/callback" {
 			return ErrSession
 		}
 	case "/anyshare/oauth2/login/callback":
-		_, _, _, status, err = request(ctx, c.client, "oauth-refresh", "GET", c.cloud+"/anyshare/oauth2/login/refreshToken", "", "", nil)
+		refBody, refHeaders, _, status, err := request(ctx, c.client, "oauth-refresh", "GET", c.cloud+"/anyshare/oauth2/login/refreshToken", "", "", nil)
 		if err != nil {
 			return err
 		}
-		if err = statusError("oauth-refresh", status); err != nil {
+		if err = responseError("oauth-refresh", status, refHeaders, refBody); err != nil {
 			return err
 		}
 	default:

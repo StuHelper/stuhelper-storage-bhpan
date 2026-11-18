@@ -75,6 +75,9 @@
     ],
     "BH-12": [
       "session_test.go#TestRefreshSessionLifecycle"
+    ],
+    "BH-13": [
+      "errors_test.go#TestErrorProviderCodeRetryAfterAndOperations"
     ]
   }
 }
