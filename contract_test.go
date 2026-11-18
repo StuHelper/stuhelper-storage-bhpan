@@ -362,7 +362,7 @@ func TestAllContractOperationsAndPublicShare(t *testing.T) {
 		case "/api/efast/v1/file/predupload":
 			reply(w, map[string]bool{"match": true})
 		case "/api/efast/v1/file/dupload":
-			reply(w, map[string]bool{"success": true})
+			reply(w, map[string]any{"success": true, "docid": docGNS, "rev": "r1"})
 		case "/api/efast/v1/file/batchdownload":
 			reply(w, map[string]string{"url": base + "/data-get"})
 		case "/api/shared-link/v1/document/anonymous":
@@ -469,7 +469,8 @@ func TestAllContractOperationsAndPublicShare(t *testing.T) {
 	check(t, err)
 	_, err = c.FastUploadAvailable(ctx, 5, strings.Repeat("a", 32))
 	check(t, err)
-	check(t, c.FastUpload(ctx, rootGNS, "book.pdf", 5, strings.Repeat("a", 32), "12345678"))
+	_, err = c.FastUpload(ctx, rootGNS, "book.pdf", 5, strings.Repeat("a", 32), "12345678")
+	check(t, err)
 	_, err = c.DownloadArchive(ctx, "bundle", nil, []string{docGNS}, &bytes.Buffer{})
 	check(t, err)
 

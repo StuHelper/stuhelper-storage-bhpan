@@ -162,7 +162,7 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 		case "/api/efast/v1/file/dupload":
 			oid := nextID()
 			items[oid] = &storedItem{id: oid, parent: str("docid"), name: str("name"), rev: "r1"}
-			replyJSON(map[string]bool{"success": true})
+			replyJSON(map[string]any{"success": true, "docid": str("docid") + "/" + oid, "rev": "r1"})
 		case "/api/efast/v1/file/batchdownload":
 			replyJSON(map[string]string{"url": base + "/archive-zip"})
 		case "/archive-zip":

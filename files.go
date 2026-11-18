@@ -54,6 +54,30 @@ func (c *Client) Libraries(ctx context.Context) ([]Library, error) {
 	}
 	return out, err
 }
+
+// PersonalLibrary selects the unique user_doc_lib library for the current
+// account. Group or department libraries are never substituted when absent.
+func (c *Client) PersonalLibrary(ctx context.Context) (Library, error) {
+	libs, err := c.Libraries(ctx)
+	if err != nil {
+		return Library{}, err
+	}
+	var match Library
+	count := 0
+	for _, lib := range libs {
+		if lib.Type == "user_doc_lib" {
+			match = lib
+			count++
+		}
+	}
+	if count == 0 {
+		return Library{}, &Error{Operation: "personal-library", Status: 200, Kind: ErrNotFound}
+	}
+	if count > 1 {
+		return Library{}, &Error{Operation: "personal-library", Status: 200, Kind: ErrProtocol}
+	}
+	return match, nil
+}
 func (c *Client) Quota(ctx context.Context) (Quota, error) {
 	var out struct {
 		Allocated *int64 `json:"allocated"`

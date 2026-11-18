@@ -300,7 +300,7 @@ func fastUpload(ctx context.Context, c *bhpan.Client, dir string, payload []byte
 	if !match {
 		return nil
 	}
-	if err := c.FastUpload(ctx, dir, "fast-probe.bin", int64(len(payload)), md5Hex, crcHex); err != nil {
+	if _, err := c.FastUpload(ctx, dir, "fast-probe.bin", int64(len(payload)), md5Hex, crcHex); err != nil {
 		return err
 	}
 	result["fast_upload_created"] = true

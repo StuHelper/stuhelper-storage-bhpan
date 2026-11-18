@@ -34,24 +34,29 @@ func (c *Client) FastUploadAvailable(ctx context.Context, length int64, sliceMD5
 	}
 	return *out.Match, nil
 }
-func (c *Client) FastUpload(ctx context.Context, parent, name string, length int64, md5, crc32 string) error {
+func (c *Client) FastUpload(ctx context.Context, parent, name string, length int64, md5, crc32 string) (UploadResult, error) {
 	if !textOK(parent) || !nameOK(name) || length <= 0 || !digestOK(md5, 32) || !digestOK(crc32, 8) {
-		return ErrInput
+		return UploadResult{}, ErrInput
 	}
 	var out struct {
-		Success *bool `json:"success"`
+		Success    *bool  `json:"success"`
+		DocumentID string `json:"docid"`
+		Revision   string `json:"rev"`
 	}
 	err := c.api(ctx, "fast-upload", "POST", "/api/efast/v1/file/dupload", map[string]any{"client_mtime": time.Now().UnixMilli(), "docid": parent, "name": name, "length": length, "md5": strings.ToLower(md5), "crc32": strings.ToLower(crc32), "ondup": 1}, &out)
 	if err != nil {
-		return err
+		return UploadResult{}, err
 	}
 	if out.Success == nil {
-		return ErrProtocol
+		return UploadResult{}, ErrProtocol
 	}
 	if !*out.Success {
-		return ErrRejected
+		return UploadResult{}, ErrRejected
 	}
-	return nil
+	if !textOK(out.DocumentID) || !textOK(out.Revision) {
+		return UploadResult{}, ErrProtocol
+	}
+	return UploadResult{DocumentID: out.DocumentID, Revision: out.Revision}, nil
 }
 
 const archiveEntryLimit = 1000

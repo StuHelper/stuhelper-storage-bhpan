@@ -759,6 +759,24 @@
         "operationId": "FinishUpload",
         "responses": {
           "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docid": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "204": {
             "description": "Provider success"
           },
           "204": {
@@ -1082,6 +1100,12 @@
                   "properties": {
                     "success": {
                       "type": "boolean"
+                    },
+                    "docid": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "string"
                     }
                   },
                   "required": [

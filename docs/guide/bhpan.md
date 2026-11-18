@@ -18,7 +18,9 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 以 `github.com/StuHelper/stuhelper-storage-bhpan` 导入包。调用 `New` 创建独立客户端，根据账号类型选择 `Login` 或 `LoginLocal`，退出时调用 `Close`。各请求传入具有截止时间的 context，不把一个客户端复用于多个同时登录的账号。
 
-调用 `Libraries` 选择文档库，再执行所需文件操作。普通上传使用 `BeginUpload`、`WriteUpload`、`FinishUpload`；分片上传使用 `MultipartOptions`、`BeginMultipart`、`PartGrants`、`WritePart`、`CompleteMultipart`。调用方必须保留成功创建的文件标识，以便处理后续失败。
+调用 `PersonalLibrary` 获取个人文档库，或使用 `Libraries` 读取全部文档库，再执行所需文件操作。
+
+普通上传使用 `BeginUpload`、`WriteUpload`、`FinishUpload`（或 `FinishUploadResult`）；分片上传使用 `MultipartOptions`、`BeginMultipart`、`PartGrants`、`WritePart`、`CompleteMultipart`。调用方必须保留成功创建的文件标识。
 
 按字节区间读取使用 `DownloadRange` 或 `DownloadSharedRange`，根据返回的 `DownloadInfo` 获取实际写入长度、对象总大小、内容类型与 ETag。
 
