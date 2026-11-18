@@ -1,8 +1,6 @@
 package bhpan
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -68,7 +66,7 @@ func ChallengeOf(err error) ChallengeKind {
 
 func challengeError(op string, status int, kind ChallengeKind) error {
 	return &ChallengeError{
-		Err:       &Error{op, status, ErrChallenge},
+		Err:       &Error{Operation: op, Status: status, Kind: ErrChallenge},
 		Challenge: kind,
 	}
 }
@@ -83,6 +81,9 @@ func parseInputAttrs(body []byte) []map[string]string {
 			if value == "" {
 				value = string(a[3])
 			}
+			if value == "" {
+				value = string(a[4])
+			}
 			attrs[strings.ToLower(string(a[1]))] = html.UnescapeString(value)
 		}
 		out = append(out, attrs)
@@ -92,11 +93,14 @@ func parseInputAttrs(body []byte) []map[string]string {
 
 func detectCASChallenge(body []byte) ChallengeKind {
 	for _, attrs := range parseInputAttrs(body) {
+		if _, disabled := attrs["disabled"]; disabled || strings.EqualFold(attrs["type"], "hidden") {
+			continue
+		}
 		for _, field := range []string{attrs["name"], attrs["id"]} {
 			switch strings.ToLower(strings.TrimSpace(field)) {
-			case "captcha", "captcharesponse", "validatecode", "j_captcha_response", "ltcaptcha", "vcode", "verifycode":
+			case "captcha", "captcharesponse", "validatecode", "j_captcha_response", "ltcaptcha", "captcha_code", "vcode", "verifycode":
 				return ChallengeCaptcha
-			case "otp", "passcode", "smscode", "dynamiccode", "mfacode", "totp":
+			case "otp", "passcode", "smscode", "dynamiccode", "mfacode", "mfa", "authcode", "totp":
 				return ChallengeMFA
 			}
 		}
@@ -114,43 +118,4 @@ func parseContinueEventID(body []byte) string {
 		}
 	}
 	return "ignoreAndContinue"
-}
-
-func detectLocalSigninChallenge(body []byte) ChallengeKind {
-	trimmed := bytes.TrimSpace(body)
-	if len(trimmed) == 0 {
-		return ChallengeUnknown
-	}
-	var payload struct {
-		VCodeInfo struct {
-			IsEnable bool   `json:"isenable"`
-			VCode    string `json:"vcode"`
-		} `json:"vcodeinfo"`
-		DualFactor map[string]any `json:"dualfactorauthinfo"`
-		Detail     map[string]any `json:"detail"`
-	}
-	if json.Unmarshal(trimmed, &payload) != nil {
-		return ChallengeUnknown
-	}
-	if payload.VCodeInfo.IsEnable || payload.VCodeInfo.VCode != "" {
-		return ChallengeCaptcha
-	}
-	if len(payload.DualFactor) > 0 {
-		return ChallengeMFA
-	}
-	if payload.Detail != nil {
-		if _, ok := payload.Detail["vcode"]; ok {
-			return ChallengeCaptcha
-		}
-		if _, ok := payload.Detail["captcha"]; ok {
-			return ChallengeCaptcha
-		}
-		if _, ok := payload.Detail["dualfactor"]; ok {
-			return ChallengeMFA
-		}
-		if _, ok := payload.Detail["otp"]; ok {
-			return ChallengeMFA
-		}
-	}
-	return ChallengeUnknown
 }

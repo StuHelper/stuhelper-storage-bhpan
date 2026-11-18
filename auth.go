@@ -2,27 +2,18 @@ package bhpan
 
 import (
 	"context"
-	"html"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 )
 
-var inputTag = regexp.MustCompile(`(?is)<input\b[^>]*>`)
-var attribute = regexp.MustCompile(`(?is)([a-z_][a-z0-9_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')`)
+var inputTag = regexp.MustCompile(`(?is)<input\b(?:[^>"']|"[^"]*"|'[^']*')*>`)
+var attribute = regexp.MustCompile(`(?is)\s+([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?`)
 
 func execution(body []byte) string {
-	for _, tag := range inputTag.FindAll(body, -1) {
-		attrs := map[string]string{}
-		for _, a := range attribute.FindAllSubmatch(tag, -1) {
-			value := string(a[2])
-			if value == "" {
-				value = string(a[3])
-			}
-			attrs[strings.ToLower(string(a[1]))] = html.UnescapeString(value)
-		}
-		if attrs["name"] == "execution" {
+	for _, attrs := range parseInputAttrs(body) {
+		if attrs["name"] == "execution" && attrs["value"] != "" {
 			return attrs["value"]
 		}
 	}
@@ -52,14 +43,14 @@ func (c *Client) LoginWithOptions(ctx context.Context, username, password string
 	if !textOK(username) || len(username) > 128 || password == "" || len(password) > 1024 {
 		return ErrInput
 	}
-	body, _, _, status, err := request(ctx, c.client, "login-page", "GET", c.sso+"/login", "", "", nil)
+	body, pageHeaders, _, status, err := request(ctx, c.client, "login-page", "GET", c.sso+"/login", "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("login-page", status); err != nil {
+	if err = responseError("login-page", status, pageHeaders, body); err != nil {
 		return err
 	}
-	if ch := detectCASChallenge(body); ch == ChallengeCaptcha || ch == ChallengeMFA {
+	if ch := detectCASChallenge(body); ch != ChallengeUnknown {
 		return challengeError("login-page", status, ch)
 	}
 	ticket := execution(body)
@@ -96,20 +87,25 @@ func (c *Client) LoginWithOptions(ctx context.Context, username, password string
 		}
 	}
 	if (status == 200 || status >= 400 && status < 500) && final.Path == "/login" && execution(body) != "" {
-		return ErrCredentials
+		return &Error{Operation: "login", Status: status, Kind: ErrCredentials}
 	}
-	portal, _ := url.Parse(headers.Get("Location"))
-	portalRedirect := status == http.StatusFound && portal != nil && portal.Hostname() == "uc.buaa.edu.cn" && portal.Path == "/"
+	portal, parseErr := final.Parse(headers.Get("Location"))
+	portalRedirect := (status == http.StatusFound || status == http.StatusSeeOther) &&
+		parseErr == nil && portal != nil &&
+		(portal.Scheme == "http" || portal.Scheme == "https") &&
+		portal.User == nil && portal.Fragment == "" &&
+		strings.EqualFold(portal.Hostname(), "uc.buaa.edu.cn") &&
+		(portal.Path == "" || strings.HasPrefix(portal.Path, "/"))
 	if !portalRedirect {
-		if err = statusError(loginOp, status); err != nil {
+		if err = responseError(loginOp, status, headers, body); err != nil {
 			return err
 		}
 	}
-	_, _, final, status, err = request(ctx, c.client, "oauth", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
+	oauthBody, oauthHeaders, final, status, err := request(ctx, c.client, "oauth", "GET", c.cloud+"/anyshare/oauth2/login?redirect=%2Fanyshare%2Fzh-cn%2Fportal", "", "", nil)
 	if err != nil {
 		return err
 	}
-	if err = statusError("oauth", status); err != nil {
+	if err = responseError("oauth", status, oauthHeaders, oauthBody); err != nil {
 		return err
 	}
 	if originOf(final) != c.cloud {
@@ -123,23 +119,23 @@ func (c *Client) LoginWithOptions(ctx context.Context, username, password string
 		}
 		base, _ := url.Parse(c.cloud)
 		c.client.Jar.SetCookies(base, []*http.Cookie{{Name: "login_challenge", Value: challenge, Path: "/", Secure: true}})
-		_, _, final, status, err = request(ctx, c.client, "oauth-callback", "GET", c.sso+"/login?"+url.Values{"service": {c.cloud + "/oauth2/signin"}}.Encode(), "", "", nil)
+		cbBody, cbHeaders, final, status, err := request(ctx, c.client, "oauth-callback", "GET", c.sso+"/login?"+url.Values{"service": {c.cloud + "/oauth2/signin"}}.Encode(), "", "", nil)
 		c.client.Jar.SetCookies(base, []*http.Cookie{{Name: "login_challenge", Value: "", Path: "/", Secure: true, MaxAge: -1}})
 		if err != nil {
 			return err
 		}
-		if err = statusError("oauth-callback", status); err != nil {
+		if err = responseError("oauth-callback", status, cbHeaders, cbBody); err != nil {
 			return err
 		}
 		if originOf(final) != c.cloud || final.Path != "/anyshare/oauth2/login/callback" {
 			return ErrSession
 		}
 	case "/anyshare/oauth2/login/callback":
-		_, _, _, status, err = request(ctx, c.client, "oauth-refresh", "GET", c.cloud+"/anyshare/oauth2/login/refreshToken", "", "", nil)
+		refBody, refHeaders, _, status, err := request(ctx, c.client, "oauth-refresh", "GET", c.cloud+"/anyshare/oauth2/login/refreshToken", "", "", nil)
 		if err != nil {
 			return err
 		}
-		if err = statusError("oauth-refresh", status); err != nil {
+		if err = responseError("oauth-refresh", status, refHeaders, refBody); err != nil {
 			return err
 		}
 	default:

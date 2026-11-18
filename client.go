@@ -3,6 +3,7 @@ package bhpan
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"io"
@@ -19,11 +20,12 @@ const metadataLimit = 4 << 20
 // Config accepts trusted operator configuration. Credentials are supplied only
 // to Login, and are not retained by the adapter.
 type Config struct {
-	CloudURL    string
-	SSOURL      string
-	Transport   http.RoundTripper
-	Timeout     time.Duration
-	DataOrigins []string
+	CloudURL          string
+	SSOURL            string
+	Transport         http.RoundTripper
+	Timeout           time.Duration
+	DataOrigins       []string
+	LocalPublicKeyPEM string
 }
 
 type Client struct {
@@ -33,6 +35,7 @@ type Client struct {
 	transport  http.RoundTripper
 	timeout    time.Duration
 	origins    map[string]bool
+	localKey   *rsa.PublicKey
 	token      string
 }
 
@@ -57,7 +60,11 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Timeout < 0 {
 		return nil, ErrInput
 	}
-	c := &Client{cloud: cloud, sso: sso, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}}
+	localKey, err := resolveLocalPublicKey(cfg.LocalPublicKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{cloud: cloud, sso: sso, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}, localKey: localKey}
 	for _, raw := range cfg.DataOrigins {
 		origin, err := parseOrigin(raw)
 		if err != nil {
@@ -95,11 +102,14 @@ func (c *Client) reset() {
 		if len(via) >= 10 {
 			return ErrProtocol
 		}
-		origin := originOf(req.URL)
-		if req.URL.Hostname() == "uc.buaa.edu.cn" && req.URL.Path == "/" && req.Method == "GET" {
+		if req.URL.User != nil || req.URL.Fragment != "" {
+			return ErrDestination
+		}
+		if strings.EqualFold(req.URL.Hostname(), "uc.buaa.edu.cn") && req.Method == http.MethodGet {
 			return http.ErrUseLastResponse
 		}
-		if req.URL.User != nil || req.URL.Fragment != "" || (origin != c.cloud && origin != c.sso && origin != "https://uc.buaa.edu.cn") {
+		origin := originOf(req.URL)
+		if origin != c.cloud && origin != c.sso {
 			return ErrDestination
 		}
 		// Do not forward credential bodies across origins on 307/308 responses.
@@ -113,6 +123,20 @@ func (c *Client) reset() {
 // Close invalidates the entire session, including SSO and cloud cookies.
 func (c *Client) Close() { c.mu.Lock(); defer c.mu.Unlock(); c.reset() }
 
+func readResponseBody(ctx context.Context, op string, status int, r io.Reader) ([]byte, error) {
+	b, e := io.ReadAll(io.LimitReader(r, metadataLimit+1))
+	if e != nil {
+		if ctx.Err() != nil {
+			return nil, &Error{Operation: op, Status: status, Kind: ctx.Err()}
+		}
+		return nil, &Error{Operation: op, Status: status, Kind: ErrUnavailable}
+	}
+	if len(b) > metadataLimit {
+		return nil, &Error{Operation: op, Status: status, Kind: ErrProtocol}
+	}
+	return b, nil
+}
+
 func limitedRead(r io.Reader) ([]byte, error) {
 	b, e := io.ReadAll(io.LimitReader(r, metadataLimit+1))
 	if e != nil || len(b) > metadataLimit {
@@ -124,7 +148,7 @@ func limitedRead(r io.Reader) ([]byte, error) {
 func request(ctx context.Context, hc *http.Client, operation, method, target, contentType, token string, body io.Reader) ([]byte, http.Header, *url.URL, int, error) {
 	req, e := http.NewRequestWithContext(ctx, method, target, body)
 	if e != nil {
-		return nil, nil, nil, 0, &Error{operation, 0, ErrInput}
+		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: ErrInput}
 	}
 	req.Header.Set("User-Agent", "StuHelper-Next-BHpan/0.1")
 	if contentType != "" {
@@ -143,23 +167,28 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 		} else if errors.Is(e, ErrProtocol) {
 			kind = ErrProtocol
 		}
-		return nil, nil, nil, 0, &Error{operation, 0, kind}
+		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: kind}
 	}
 	defer resp.Body.Close()
-	data, e := limitedRead(resp.Body)
+	data, e := readResponseBody(ctx, operation, resp.StatusCode, resp.Body)
 	if e != nil {
-		if ctx.Err() != nil {
-			e = ctx.Err()
-		}
-		return nil, nil, nil, resp.StatusCode, &Error{operation, resp.StatusCode, e}
+		return nil, nil, nil, resp.StatusCode, e
 	}
 	return data, resp.Header, resp.Request.URL, resp.StatusCode, nil
 }
 
 func statusError(op string, status int) error {
+	return responseError(op, status, nil, nil)
+}
+
+func responseError(op string, status int, headers http.Header, body []byte) error {
 	if status >= 200 && status < 300 {
 		return nil
 	}
+	return providerFailure(op, status, headers, body)
+}
+
+func providerFailure(op string, status int, headers http.Header, body []byte) *Error {
 	kind := ErrUnavailable
 	switch status {
 	case 401:
@@ -173,16 +202,35 @@ func statusError(op string, status int) error {
 	case 400, 422:
 		kind = ErrRejected
 	}
-	return &Error{op, status, kind}
+	return &Error{
+		Operation:    op,
+		Status:       status,
+		Kind:         kind,
+		ProviderCode: extractProviderCode(body),
+		RetryAfter:   parseRetryAfterAt(headers, time.Now()),
+	}
+}
+
+func (c *Client) sessionClient(op string) (*http.Client, string, error) {
+	c.mu.RLock()
+	token := c.token
+	var hc http.Client
+	if c.client != nil {
+		hc = *c.client
+	}
+	c.mu.RUnlock()
+	if token == "" {
+		return nil, "", &Error{Operation: op, Status: 0, Kind: ErrSession}
+	}
+	return &hc, token, nil
 }
 
 func (c *Client) api(ctx context.Context, op, method, path string, in, out any) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.token == "" {
-		return &Error{op, 0, ErrSession}
+	hc, token, err := c.sessionClient(op)
+	if err != nil {
+		return err
 	}
-	return c.json(ctx, c.client, c.token, op, method, path, in, out)
+	return c.json(ctx, hc, token, op, method, path, in, out)
 }
 
 func (c *Client) json(ctx context.Context, hc *http.Client, token, op, method, path string, in, out any) error {
@@ -197,31 +245,31 @@ func (c *Client) json(ctx context.Context, hc *http.Client, token, op, method, p
 	// API calls must never turn a redirect/login HTML page into an apparent success.
 	local := *hc
 	local.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	b, _, _, status, e := request(ctx, &local, op, method, c.cloud+path, "application/json", token, body)
+	b, headers, _, status, e := request(ctx, &local, op, method, c.cloud+path, "application/json", token, body)
 	if e != nil {
 		return e
 	}
-	if e = statusError(op, status); e != nil {
+	if e = responseError(op, status, headers, b); e != nil {
 		return e
 	}
 	trimmed := bytes.TrimSpace(b)
 	if len(trimmed) > 0 {
 		if !json.Valid(trimmed) || bytes.Equal(trimmed, []byte("false")) {
-			return &Error{op, status, ErrProtocol}
+			return &Error{Operation: op, Status: status, Kind: ErrProtocol}
 		}
 		var envelope map[string]json.RawMessage
 		if json.Unmarshal(trimmed, &envelope) == nil {
 			for _, key := range []string{"code", "error_code", "error"} {
 				value := bytes.TrimSpace(envelope[key])
 				if len(value) > 0 && !bytes.Equal(value, []byte("0")) && !bytes.Equal(value, []byte("null")) && !bytes.Equal(value, []byte(`""`)) {
-					return &Error{op, status, ErrRejected}
+					return &Error{Operation: op, Status: status, Kind: ErrRejected, ProviderCode: extractProviderCode(trimmed), RetryAfter: parseRetryAfterAt(headers, time.Now())}
 				}
 			}
 		}
 	}
 	if out != nil {
 		if len(bytes.TrimSpace(b)) == 0 || bytes.Equal(bytes.TrimSpace(b), []byte("null")) || json.Unmarshal(b, out) != nil {
-			return &Error{op, status, ErrProtocol}
+			return &Error{Operation: op, Status: status, Kind: ErrProtocol}
 		}
 	}
 	return nil

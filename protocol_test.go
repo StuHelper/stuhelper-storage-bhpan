@@ -198,13 +198,13 @@ func TestOptionalTransferOperations(t *testing.T) {
 		case "/api/efast/v1/file/predupload":
 			reply(w, map[string]bool{"match": true})
 		case "/api/efast/v1/file/dupload":
-			reply(w, map[string]bool{"success": true})
+			reply(w, map[string]any{"success": true, "docid": "gns://root/fast.bin", "rev": "fast-rev"})
 		case "/api/efast/v1/file/batchdownload":
 			reply(w, map[string]string{"url": base + "/archive"})
 		case "/archive":
 			fmt.Fprint(w, "zip-fixture")
 		case "/api/doc-share/v1/docs-shared-with-anyone":
-			reply(w, map[string]any{"entries": []any{map[string]any{"doc": map[string]string{"id": "file", "type": "file"}, "link_configs": []any{map[string]any{"id": "share", "title": "Test", "allow": []string{"download"}, "limited_times": -1}}}}})
+			reply(w, map[string]any{"entries": []any{map[string]any{"doc": map[string]any{"id": "file", "type": "file", "allow": []string{"download"}}, "link_configs": []any{map[string]any{"id": "share", "title": "Test", "allow": []string{"download"}, "limited_times": -1}}}}})
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
@@ -217,7 +217,11 @@ func TestOptionalTransferOperations(t *testing.T) {
 	if !match {
 		t.Fatal("match")
 	}
-	check(t, c.FastUpload(ctx, "root", "fast.bin", 4, strings.Repeat("a", 32), "12345678"))
+	fastRes, e := c.FastUpload(ctx, "root", "fast.bin", 4, strings.Repeat("a", 32), "12345678")
+	check(t, e)
+	if fastRes.DocumentID != "gns://root/fast.bin" || fastRes.Revision != "fast-rev" {
+		t.Fatalf("unexpected fast upload result: %+v", fastRes)
+	}
 	var dst bytes.Buffer
 	_, e = c.DownloadArchive(ctx, "files", nil, []string{"file"}, &dst)
 	check(t, e)

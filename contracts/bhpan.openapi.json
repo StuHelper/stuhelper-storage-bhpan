@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BHpan observed provider API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Private observed protocol contract; not a provider-issued specification or a StuHelper HTTP service."
   },
   "servers": [
@@ -759,6 +759,27 @@
         "operationId": "FinishUpload",
         "responses": {
           "200": {
+            "description": "Provider success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "docid": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Provider success"
+          },
+          "204": {
             "description": "Provider success"
           },
           "400": {
@@ -1079,6 +1100,12 @@
                   "properties": {
                     "success": {
                       "type": "boolean"
+                    },
+                    "docid": {
+                      "type": "string"
+                    },
+                    "rev": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -1658,6 +1685,9 @@
           "200": {
             "description": "Provider success"
           },
+          "302": {
+            "description": "Redirect with isolated share token cookie"
+          },
           "400": {
             "description": "Request rejected"
           },
@@ -1713,6 +1743,9 @@
         "responses": {
           "200": {
             "description": "Provider success"
+          },
+          "302": {
+            "description": "Redirect with isolated share token cookie"
           },
           "400": {
             "description": "Request rejected"
