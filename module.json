@@ -12,15 +12,19 @@
   ],
   "scenario_tests": {
     "BH-01": [
-      "client_test.go#TestSSOLoginAndSessionReset"
+      "client_test.go#TestSSOLoginAndSessionReset",
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx"
     ],
     "BH-02": [
-      "client_test.go#TestLocalLoginEncryptsCredentials"
+      "client_test.go#TestLocalLoginEncryptsCredentials",
+      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses"
     ],
     "BH-03": [
       "client_test.go#TestLoginRiskAndUntrustedRedirect",
       "client_test.go#TestResponseBoundsAndSafeErrors",
-      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess"
+      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess",
+      "auth_redirect_test.go#TestSSOLoginDetectsCaptchaAndMFAChallenges",
+      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses"
     ],
     "BH-04": [
       "client_test.go#TestMetadataAndFileOperations"
@@ -28,7 +32,8 @@
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
       "client_test.go#TestOriginAndGrantValidation",
-      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData"
+      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData",
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx"
     ],
     "BH-06": [
       "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
