@@ -211,9 +211,11 @@ func TestProbeSelectsPersonalLibraryAndRefusesSharedFallback(t *testing.T) {
 		{ID: "gns://dept-lib", Name: "Department Shared", Type: "department_doc_lib"},
 	})
 	cfg2 := bhpan.Config{CloudURL: s2.URL, SSOURL: s2.URL, Transport: s2.Client().Transport, Timeout: time.Second}
-	res2, failed2 := probeAccount(ctx, cfg2, 1, account{Username: "u", Password: "p", Mode: "sso"}, input{Files: true})
-	if !failed2 {
-		t.Fatalf("expected Files=true probe without user_doc_lib to fail, got %v", res2)
+	for _, writeFiles := range []bool{false, true} {
+		res, failed := probeAccount(ctx, cfg2, 1, account{Username: "u", Password: "p", Mode: "sso"}, input{Files: writeFiles})
+		if !failed || res["error"] != "probe: personal library not found" {
+			t.Fatalf("files=%v: expected missing personal library error, got %v", writeFiles, res)
+		}
 	}
 	if deptTouches2.Load() != 0 || len(parents2()) != 0 {
 		t.Fatalf("probe created or listed resources in shared library: touches=%d parents=%v", deptTouches2.Load(), parents2())

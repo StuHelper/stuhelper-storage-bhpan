@@ -89,15 +89,12 @@ func probeAccount(ctx context.Context, cfg bhpan.Config, index int, a account, i
 	if err == nil {
 		var libs []bhpan.Library
 		var personalID string
-		var personalErr error
 		libs, err = c.Libraries(ctx)
 		if err == nil {
 			result["libraries"] = len(libs)
-			personalID, personalErr = selectPersonalLibrary(libs)
-			if personalID != "" {
+			personalID, err = selectPersonalLibrary(libs)
+			if err == nil {
 				result["personal_library_type"] = true
-			} else if personalErr != nil && strings.Contains(personalErr.Error(), "ambiguous") {
-				err = personalErr
 			}
 		}
 		if err == nil {
@@ -107,18 +104,14 @@ func probeAccount(ctx context.Context, cfg bhpan.Config, index int, a account, i
 				result["quota_valid"] = q.Allocated >= 0 && q.Used >= 0
 			}
 		}
-		if err == nil && personalID != "" {
+		if err == nil {
 			_, err = c.List(ctx, personalID)
 			if err == nil {
 				result["root_list_valid"] = true
 			}
 		}
 		if err == nil && in.Files {
-			if personalErr != nil {
-				err = personalErr
-			} else {
-				err = files(ctx, c, personalID, in, result)
-			}
+			err = files(ctx, c, personalID, in, result)
 		}
 	}
 	failed := false
