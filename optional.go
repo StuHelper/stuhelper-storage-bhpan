@@ -96,12 +96,13 @@ func (c *Client) ShareHistory(ctx context.Context) ([]Share, error) {
 		Entries []struct {
 			Document ShareItem `json:"doc"`
 			Links    []struct {
-				ID       string   `json:"id"`
-				Title    string   `json:"title"`
-				Expires  string   `json:"expires_at"`
-				Password string   `json:"password"`
-				Limit    int64    `json:"limited_times"`
-				Allow    []string `json:"allow"`
+				ID               string   `json:"id"`
+				Title            string   `json:"title"`
+				Expires          string   `json:"expires_at"`
+				Password         string   `json:"password"`
+				PasswordRequired bool     `json:"password_required"`
+				Limit            int64    `json:"limited_times"`
+				Allow            []string `json:"allow"`
 			} `json:"link_configs"`
 		} `json:"entries"`
 	}
@@ -114,12 +115,19 @@ func (c *Client) ShareHistory(ctx context.Context) ([]Share, error) {
 	shares := []Share{}
 	for _, entry := range out.Entries {
 		for _, link := range entry.Links {
-			if !textOK(link.ID) || !textOK(entry.Document.ID) {
+			if !shareIDOK(link.ID) || !textOK(entry.Document.ID) || entry.Document.ID == "." || entry.Document.ID == ".." || (entry.Document.Type != "file" && entry.Document.Type != "folder") {
 				return nil, ErrProtocol
 			}
 			item := entry.Document
 			item.Allow = link.Allow
-			shares = append(shares, Share{ID: link.ID, Title: link.Title, ExpiresAt: link.Expires, Password: link.Password, LimitedTimes: link.Limit, Item: item})
+			shares = append(shares, Share{
+				ID:           link.ID,
+				Title:        link.Title,
+				ExpiresAt:    link.Expires,
+				HasPassword:  link.Password != "" || link.PasswordRequired,
+				LimitedTimes: link.Limit,
+				Item:         item,
+			})
 		}
 	}
 	return shares, nil
