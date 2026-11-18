@@ -1640,6 +1640,15 @@
                   "properties": {
                     "password_required": {
                       "type": "boolean"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    },
+                    "limited_times": {
+                      "type": "integer"
                     }
                   },
                   "required": [

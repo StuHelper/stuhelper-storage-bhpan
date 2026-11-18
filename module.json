@@ -84,6 +84,9 @@
     ],
     "BH-15": [
       "challenge_test.go#TestChallengeClassificationAndRiskConfirmation"
+    ],
+    "BH-16": [
+      "share_inspect_test.go#TestParseShareURLAndInspectShare"
     ]
   }
 }

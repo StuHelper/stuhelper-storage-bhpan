@@ -26,6 +26,8 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 `Delete` 将文件放入回收站。先通过 `RecycleBin` 获取对应回收站条目，再以其标识调用 `Restore` 或 `Purge`。业务程序应保存准确的对象归属，不依赖文件名进行日常删除。
 
+导入外链分享时，先用 `ParseShareURL` 从完整链接提取分享标识，再调用 `InspectShare` 判断分享是否有效及是否需要提取码，最后按需调用 `ResolveShare`。
+
 ## 真实账号验证
 
 `go run ./cmd/bhpan-probe` 从标准输入读取一个 JSON 对象。`Accounts` 最多包含两个账号，每项包含 `Username`、`Password` 和 `Mode`；Mode 为 `sso` 或 `local`。不要把凭据放入命令参数、源码、普通文件或终端历史。
