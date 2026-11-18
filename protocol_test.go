@@ -204,7 +204,7 @@ func TestOptionalTransferOperations(t *testing.T) {
 		case "/archive":
 			fmt.Fprint(w, "zip-fixture")
 		case "/api/doc-share/v1/docs-shared-with-anyone":
-			reply(w, map[string]any{"entries": []any{map[string]any{"doc": map[string]string{"id": "file", "type": "file"}, "link_configs": []any{map[string]any{"id": "share", "title": "Test", "allow": []string{"download"}, "limited_times": -1}}}}})
+			reply(w, map[string]any{"entries": []any{map[string]any{"doc": map[string]any{"id": "file", "type": "file", "allow": []string{"download"}}, "link_configs": []any{map[string]any{"id": "share", "title": "Test", "allow": []string{"download"}, "limited_times": -1}}}}})
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
