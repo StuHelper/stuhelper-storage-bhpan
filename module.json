@@ -12,7 +12,8 @@
   ],
   "scenario_tests": {
     "BH-01": [
-      "client_test.go#TestSSOLoginAndSessionReset"
+      "client_test.go#TestSSOLoginAndSessionReset",
+      "client_resilience_test.go#TestCloseDoesNotBlockOnSlowAPIRequest"
     ],
     "BH-02": [
       "client_test.go#TestLocalLoginEncryptsCredentials"
@@ -20,7 +21,8 @@
     "BH-03": [
       "client_test.go#TestLoginRiskAndUntrustedRedirect",
       "client_test.go#TestResponseBoundsAndSafeErrors",
-      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess"
+      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess",
+      "client_resilience_test.go#TestResponseBodyInterruptionAndContextCancellation"
     ],
     "BH-04": [
       "client_test.go#TestMetadataAndFileOperations"
@@ -28,14 +30,17 @@
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
       "client_test.go#TestOriginAndGrantValidation",
-      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData"
+      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
     ],
     "BH-06": [
-      "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
+      "protocol_test.go#TestMultipartProtocolAndCompletionFailure",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
     ],
     "BH-07": [
       "protocol_test.go#TestShareTokenIsolationAndCRUD",
-      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren"
+      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren",
+      "client_resilience_test.go#TestContractValidatorCoversEscapedGNSNonAPIAndAdditionalProps"
     ],
     "BH-08": [
       "protocol_test.go#TestOptionalTransferOperations"

@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-10
+updated: 2026-11-18
 ---
 
 # BHpan 适配接口
@@ -48,9 +48,9 @@ updated: 2026-11-10
 
 配置只接受 HTTPS origin，默认仅允许网盘对象地址。额外对象 origin 必须由服务端配置，端口也参与校验。HTTPS 默认端口 443 统一处理；URL 用户信息、片段、非授权地址和对象请求重定向均被拒绝。
 
-对象上传仅附带签名要求的 Authorization、Content-Type 和 X-Amz-Date，下载仅使用下载授权。对象请求不携带个人 token 或 cookie。临时签名在本进程最多使用十分钟；这是本地上限，实际有效期仍由供应商决定。
+对象上传仅附带签名要求的非空单值 Authorization、Content-Type 和 X-Amz-Date，下载授权禁止附带额外签名头。对象请求不携带个人 token 或 cookie。临时签名在本进程最多使用十分钟，到期返回独立的 `ErrGrantExpired`，不与账号会话失效混淆。
 
-元数据响应最多读取 4 MiB。默认每次 HTTP 请求超时三十秒，也接受调用方 context 取消。错误只包含固定操作名、HTTP 状态和错误类别，不包含账号、密码、签名地址、cookie 或供应商原始响应。401、403、404、409 分别保留会话失效、操作被拒、对象不存在和冲突状态，不统一解释成密码失效。
+元数据响应最多读取 4 MiB，超限返回 `ErrProtocol`，读取中断返回 `ErrUnavailable` 并优先保留 context 取消。请求仅在读取会话快照时持锁，不阻塞 `Close`。错误只包含固定操作名、HTTP 状态和错误类别，401、403、404、409 分别保留对应状态。
 
 ## 验收场景
 
