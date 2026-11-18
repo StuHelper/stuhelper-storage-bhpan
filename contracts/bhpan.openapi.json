@@ -779,6 +779,9 @@
           "204": {
             "description": "Provider success"
           },
+          "204": {
+            "description": "Provider success"
+          },
           "400": {
             "description": "Request rejected"
           },
@@ -1682,6 +1685,9 @@
           "200": {
             "description": "Provider success"
           },
+          "302": {
+            "description": "Redirect with isolated share token cookie"
+          },
           "400": {
             "description": "Request rejected"
           },
@@ -1737,6 +1743,9 @@
         "responses": {
           "200": {
             "description": "Provider success"
+          },
+          "302": {
+            "description": "Redirect with isolated share token cookie"
           },
           "400": {
             "description": "Request rejected"

@@ -48,7 +48,7 @@ func (c *Client) Libraries(ctx context.Context) ([]Library, error) {
 	if err == nil {
 		for _, e := range out {
 			if !textOK(e.ID) {
-				return nil, ErrProtocol
+				return nil, &Error{Operation: "libraries", Status: 200, Kind: ErrProtocol}
 			}
 		}
 	}
@@ -71,10 +71,10 @@ func (c *Client) PersonalLibrary(ctx context.Context) (Library, error) {
 		}
 	}
 	if count == 0 {
-		return Library{}, &Error{"personal-library", 200, ErrNotFound}
+		return Library{}, &Error{Operation: "personal-library", Status: 200, Kind: ErrNotFound}
 	}
 	if count > 1 {
-		return Library{}, &Error{"personal-library", 200, ErrProtocol}
+		return Library{}, &Error{Operation: "personal-library", Status: 200, Kind: ErrProtocol}
 	}
 	return match, nil
 }
@@ -88,7 +88,7 @@ func (c *Client) Quota(ctx context.Context) (Quota, error) {
 		return Quota{}, err
 	}
 	if out.Allocated == nil || out.Used == nil || *out.Allocated < 0 || *out.Used < 0 {
-		return Quota{}, ErrProtocol
+		return Quota{}, &Error{Operation: "quota", Status: 200, Kind: ErrProtocol}
 	}
 	// An account may be over quota after the provider reduces its allocation.
 	return Quota{*out.Allocated, *out.Used}, nil
@@ -99,15 +99,6 @@ func (c *Client) List(ctx context.Context, id string) (Directory, error) {
 		return out, ErrInput
 	}
 	err := c.api(ctx, "list", "POST", "/api/efast/v1/dir/list", map[string]any{"docid": id, "by": "name", "sort": "asc"}, &out)
-	if err == nil {
-		for _, items := range [][]Entry{out.Directories, out.Files} {
-			for _, v := range items {
-				if !textOK(v.ID) || !textOK(v.Name) || v.Size < -1 {
-					return Directory{}, ErrProtocol
-				}
-			}
-		}
-	}
 	return out, err
 }
 func (c *Client) DirectorySize(ctx context.Context, id string) (Size, error) {
@@ -116,9 +107,6 @@ func (c *Client) DirectorySize(ctx context.Context, id string) (Size, error) {
 		return out, ErrInput
 	}
 	err := c.api(ctx, "size", "POST", "/api/efast/v1/dir/size", map[string]any{"docid": id, "onlyrecycle": false}, &out)
-	if err == nil && (out.Bytes < 0 || out.Files < 0 || out.Directories < 0) {
-		err = ErrProtocol
-	}
 	return out, err
 }
 func (c *Client) SuggestedName(ctx context.Context, id, name string) (string, error) {
@@ -130,7 +118,7 @@ func (c *Client) SuggestedName(ctx context.Context, id, name string) (string, er
 	}
 	err := c.api(ctx, "suggest-name", "POST", "/api/efast/v1/file/getsuggestname", map[string]any{"docid": id, "name": name}, &out)
 	if err == nil && !nameOK(out.Name) {
-		err = ErrProtocol
+		err = &Error{Operation: "suggest-name", Status: 200, Kind: ErrProtocol}
 	}
 	return out.Name, err
 }
@@ -149,7 +137,7 @@ func (c *Client) change(ctx context.Context, op, path string, in map[string]any,
 	}
 	err := c.api(ctx, op, "POST", "/api/efast/v1/"+path, in, target)
 	if err == nil && wantID && !textOK(out.ID) {
-		err = ErrProtocol
+		err = &Error{Operation: op, Status: 200, Kind: ErrProtocol}
 	}
 	return out.ID, err
 }
@@ -201,6 +189,11 @@ func (d *Directory) UnmarshalJSON(data []byte) error {
 	var out wire
 	if json.Unmarshal(data, &out) != nil || out.Directories == nil || out.Files == nil {
 		return ErrProtocol
+	}
+	for _, f := range out.Files {
+		if f.Size < 0 {
+			return ErrProtocol
+		}
 	}
 	*d = Directory(out)
 	return nil
