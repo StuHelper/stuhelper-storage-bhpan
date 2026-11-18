@@ -40,7 +40,8 @@
       "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
       "transfer_stream_test.go#TestDownloadPreservesDestinationWriteErrors",
       "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
-      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession",
+      "client_test.go#TestStreamLengthMismatchAndConcurrentClose"
     ],
     "BH-06": [
       "protocol_test.go#TestMultipartProtocolAndCompletionFailure",
@@ -53,12 +54,14 @@
       "share_security_test.go#TestShareIDRejectsTraversalAndUnsafeCharacters",
       "share_security_test.go#TestSharePasswordRedactionAndValidation",
       "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize",
-      "client_resilience_test.go#TestContractValidatorCoversEscapedGNSNonAPIAndAdditionalProps"
+      "client_resilience_test.go#TestContractValidatorCoversEscapedGNSNonAPIAndAdditionalProps",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-08": [
       "protocol_test.go#TestOptionalTransferOperations",
       "transfer_stream_test.go#TestDownloadArchiveRejectsExcessiveEntries",
-      "share_security_test.go#TestSharePasswordRedactionAndValidation"
+      "share_security_test.go#TestSharePasswordRedactionAndValidation",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-09": [
       "identity_test.go#TestStableIdentityAndMalformedProfile"

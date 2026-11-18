@@ -158,7 +158,7 @@ func TestSharePasswordRedactionAndValidation(t *testing.T) {
 		[]any{map[string]any{"id": "..", "item": map[string]any{"id": "file", "type": "file", "allow": []string{"download"}}}},
 		[]any{map[string]any{"id": "valid-id", "item": map[string]any{"id": "", "type": "file", "allow": []string{"download"}}}},
 	} {
-		mc, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) { reply(w, payload) })
+		mc, _ := malformedFixture(t, func(w http.ResponseWriter, r *http.Request) { reply(w, payload) })
 		mc.token = "fixture-token"
 		if _, err := mc.Shares(ctx, "file"); !errors.Is(err, ErrProtocol) {
 			t.Fatalf("Shares accepted malformed payload %v: %v", payload, err)
