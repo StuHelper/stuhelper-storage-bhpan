@@ -203,7 +203,11 @@ func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64
 		cancel(nil)
 		return nil, &Error{"transfer", resp.StatusCode, ErrDestination}
 	}
-	if e = statusError("transfer", resp.StatusCode); e != nil {
+	e = statusError("transfer", resp.StatusCode)
+	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && g.headers.Get("Range") != "" {
+		e = &Error{"transfer", resp.StatusCode, ErrRejected}
+	}
+	if e != nil {
 		watch.stop()
 		resp.Body.Close()
 		cancel(nil)

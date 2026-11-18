@@ -69,6 +69,9 @@
     ],
     "BH-10": [
       "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
+    ],
+    "BH-11": [
+      "range_test.go#TestDownloadRangeAndSharedRange"
     ]
   }
 }

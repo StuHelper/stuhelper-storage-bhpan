@@ -20,6 +20,8 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 调用 `Libraries` 选择文档库，再执行所需文件操作。普通上传使用 `BeginUpload`、`WriteUpload`、`FinishUpload`；分片上传使用 `MultipartOptions`、`BeginMultipart`、`PartGrants`、`WritePart`、`CompleteMultipart`。调用方必须保留成功创建的文件标识，以便处理后续失败。
 
+按字节区间读取使用 `DownloadRange` 或 `DownloadSharedRange`，根据返回的 `DownloadInfo` 获取实际写入长度、对象总大小、内容类型与 ETag。
+
 `Delete` 将文件放入回收站。先通过 `RecycleBin` 获取对应回收站条目，再以其标识调用 `Restore` 或 `Purge`。业务程序应保存准确的对象归属，不依赖文件名进行日常删除。
 
 ## 真实账号验证
