@@ -193,6 +193,12 @@ func (c *Client) data(ctx context.Context, g grant, body io.Reader, length int64
 		return nil, &Error{"transfer", 0, ErrUnavailable}
 	}
 	watch.pause()
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		watch.stop()
+		resp.Body.Close()
+		cancel(nil)
+		return nil, &Error{"transfer", resp.StatusCode, ErrDestination}
+	}
 	if e = statusError("transfer", resp.StatusCode); e != nil {
 		watch.stop()
 		resp.Body.Close()
