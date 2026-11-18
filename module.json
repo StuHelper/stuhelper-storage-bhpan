@@ -23,7 +23,8 @@
       "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess"
     ],
     "BH-04": [
-      "client_test.go#TestMetadataAndFileOperations"
+      "client_test.go#TestMetadataAndFileOperations",
+      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize"
     ],
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
@@ -35,10 +36,14 @@
     ],
     "BH-07": [
       "protocol_test.go#TestShareTokenIsolationAndCRUD",
-      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren"
+      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren",
+      "share_security_test.go#TestShareIDRejectsTraversalAndUnsafeCharacters",
+      "share_security_test.go#TestSharePasswordRedactionAndValidation",
+      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize"
     ],
     "BH-08": [
-      "protocol_test.go#TestOptionalTransferOperations"
+      "protocol_test.go#TestOptionalTransferOperations",
+      "share_security_test.go#TestSharePasswordRedactionAndValidation"
     ],
     "BH-09": [
       "identity_test.go#TestStableIdentityAndMalformedProfile"
