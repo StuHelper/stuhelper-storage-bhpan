@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-18
+updated: 2026-11-20
 ---
 
 # BHpan 适配接口
@@ -10,7 +10,7 @@ updated: 2026-11-18
 
 `bhpan` 是服务端 Go 适配库，提供北航网盘登录、容量、文件、上传、下载与分享操作。业务方负责授权、凭据生命周期和贡献容量规则。本库没有数据库、后台任务或平台 HTTP 路由，不自行作出学生资格与存储贡献结论。
 
-接口路径和字段参考[旧项目协议入口](https://github.com/StuHelper/StuHelper/tree/4c6d67a2fb8184e935d0aad9e33ce5c18fea6ac3/server/internal/modules/storage/bhpan)。实现与测试重新编写，不导入旧模块、复制其源码或复用其测试夹具。
+接口路径和字段参考[旧项目协议入口](https://github.com/StuHelper/StuHelper-legacy/tree/4c6d67a2fb8184e935d0aad9e33ce5c18fea6ac3/server/internal/modules/storage/bhpan)。实现与测试重新编写，不导入旧模块、复制其源码或复用其测试夹具。
 
 本地账号登录补充参考[供应商登录脚本](https://bhpan.buaa.edu.cn/oauth2/_next/static/chunks/pages/signin-c48cff0def79ace2ad81.js)。脚本提供 RSA 公钥、加密方式、CSRF 字段和登录响应约定；公钥属于协议材料。
 
