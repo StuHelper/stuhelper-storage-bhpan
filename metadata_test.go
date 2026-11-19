@@ -22,7 +22,7 @@ func TestFileMetadataIdentityAndMissingObject(t *testing.T) {
 		{"denied", "fixture_object", 12, 403, ErrPermission},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+			c, _ := newFixture(t, test.want != ErrProtocol || test.name == "swapped-identity", func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != "GET" || r.URL.Path != "/api/efast/v2/items/fixture_object/all" {
 					t.Error("wrong metadata request")
 				}

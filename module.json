@@ -12,39 +12,81 @@
   ],
   "scenario_tests": {
     "BH-01": [
-      "client_test.go#TestSSOLoginAndSessionReset"
+      "client_test.go#TestSSOLoginAndSessionReset",
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
+      "client_resilience_test.go#TestCloseDoesNotBlockOnSlowAPIRequest"
     ],
     "BH-02": [
-      "client_test.go#TestLocalLoginEncryptsCredentials"
+      "client_test.go#TestLocalLoginEncryptsCredentials",
+      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses",
+      "local_key_test.go#TestLocalPublicKeyOverrideAndScriptOrder"
     ],
     "BH-03": [
       "client_test.go#TestLoginRiskAndUntrustedRedirect",
       "client_test.go#TestResponseBoundsAndSafeErrors",
-      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess"
+      "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess",
+      "auth_redirect_test.go#TestSSOLoginDetectsCaptchaAndMFAChallenges",
+      "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses",
+      "client_resilience_test.go#TestResponseBodyInterruptionAndContextCancellation"
     ],
     "BH-04": [
-      "client_test.go#TestMetadataAndFileOperations"
+      "client_test.go#TestMetadataAndFileOperations",
+      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize"
     ],
     "BH-05": [
       "client_test.go#TestTransferCredentialsAndRedirectIsolation",
       "client_test.go#TestOriginAndGrantValidation",
-      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData"
+      "client_test.go#TestEmptyUploadUsesExplicitLengthAndRejectsData",
+      "transfer_stream_test.go#TestStreamTransfersOutliveRequestTimeoutAndAbortStalls",
+      "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
+      "transfer_stream_test.go#TestDownloadPreservesDestinationWriteErrors",
+      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession",
+      "client_test.go#TestStreamLengthMismatchAndConcurrentClose"
     ],
     "BH-06": [
-      "protocol_test.go#TestMultipartProtocolAndCompletionFailure"
+      "protocol_test.go#TestMultipartProtocolAndCompletionFailure",
+      "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
+      "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession"
     ],
     "BH-07": [
       "protocol_test.go#TestShareTokenIsolationAndCRUD",
-      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren"
+      "protocol_test.go#TestSharedDirectoryPreservesScopedChildren",
+      "share_security_test.go#TestShareIDRejectsTraversalAndUnsafeCharacters",
+      "share_security_test.go#TestSharePasswordRedactionAndValidation",
+      "share_security_test.go#TestResolveShareCredentialsCookieAndDirectorySize",
+      "client_resilience_test.go#TestContractValidatorCoversEscapedGNSNonAPIAndAdditionalProps",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-08": [
-      "protocol_test.go#TestOptionalTransferOperations"
+      "protocol_test.go#TestOptionalTransferOperations",
+      "transfer_stream_test.go#TestDownloadArchiveRejectsExcessiveEntries",
+      "share_security_test.go#TestSharePasswordRedactionAndValidation",
+      "contract_test.go#TestAllContractOperationsAndPublicShare"
     ],
     "BH-09": [
       "identity_test.go#TestStableIdentityAndMalformedProfile"
     ],
     "BH-10": [
       "metadata_test.go#TestFileMetadataIdentityAndMissingObject"
+    ],
+    "BH-11": [
+      "range_test.go#TestDownloadRangeAndSharedRange"
+    ],
+    "BH-12": [
+      "session_test.go#TestRefreshSessionLifecycle"
+    ],
+    "BH-13": [
+      "errors_test.go#TestErrorProviderCodeRetryAfterAndOperations"
+    ],
+    "BH-14": [
+      "upload_library_test.go#TestPersonalLibraryUploadResultAndPartGrant"
+    ],
+    "BH-15": [
+      "challenge_test.go#TestChallengeClassificationAndRiskConfirmation"
+    ],
+    "BH-16": [
+      "share_inspect_test.go#TestParseShareURLAndInspectShare"
     ]
   }
 }

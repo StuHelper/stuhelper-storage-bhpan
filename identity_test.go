@@ -20,7 +20,7 @@ func TestStableIdentityAndMalformedProfile(t *testing.T) {
 		{"denied", "user", "fixture-user-id", 403, ErrPermission},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+			c, _ := newFixture(t, test.want != ErrProtocol, func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != "POST" || r.URL.Path != "/api/eacp/v1/user/get" || r.Header.Get("Authorization") != "Bearer fixture-token" {
 					t.Error("invalid identity request")
 				}

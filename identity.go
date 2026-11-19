@@ -18,7 +18,7 @@ func (c *Client) Identity(ctx context.Context) (Identity, error) {
 		return Identity{}, err
 	}
 	if out.Type != "user" || !textOK(out.UserID) || len(out.UserID) > 256 {
-		return Identity{}, ErrProtocol
+		return Identity{}, &Error{Operation: "identity", Status: 200, Kind: ErrProtocol}
 	}
 	return Identity{ID: out.UserID}, nil
 }
