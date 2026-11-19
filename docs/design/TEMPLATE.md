@@ -6,7 +6,7 @@ updated: YYYY-MM-DD
 
 # 设计主题
 
-按[维护约定](https://github.com/StuHelper/stuhelper-next/blob/develop/docs/authoring.md)填写实际内容，删除不适用章节。规则、方案、进度与结果分别表达，确认依据沿用已有授权和实际讨论。
+按[维护约定](https://github.com/StuHelper/stuhelper/blob/develop/docs/authoring.md)填写实际内容，删除不适用章节。规则、方案、进度与结果分别表达，确认依据沿用已有授权和实际讨论。
 
 ## 目标与范围
 

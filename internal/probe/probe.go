@@ -149,7 +149,7 @@ func files(ctx context.Context, cfg bhpan.Config, c *bhpan.Client, root string, 
 	if _, err = rand.Read(nonce); err != nil {
 		return errors.New("probe: random source unavailable")
 	}
-	name := "stuhelper-next-bhpan-test-" + hex.EncodeToString(nonce)
+	name := "stuhelper-bhpan-test-" + hex.EncodeToString(nonce)
 	dir, err := c.CreateDirectory(ctx, root, name)
 	if err != nil {
 		return err
@@ -171,7 +171,7 @@ func files(ctx context.Context, cfg bhpan.Config, c *bhpan.Client, root string, 
 			err = errors.Join(err, fmt.Errorf("probe cleanup: %w", e))
 		}
 	}()
-	payload := append([]byte("StuHelper Next BHpan adapter verification\n"), nonce...)
+	payload := append([]byte("StuHelper BHpan adapter verification\n"), nonce...)
 	upload, err := c.BeginUpload(ctx, dir, "probe.bin", int64(len(payload)))
 	if err != nil {
 		return err
