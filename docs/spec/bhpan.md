@@ -8,21 +8,21 @@ updated: 2026-11-21
 
 ## 范围与来源
 
-`bhpan` 是服务端 Go 适配库，提供北航网盘登录、容量、文件、上传、下载与分享操作。业务方负责授权、凭据生命周期和贡献容量规则。本库没有数据库、后台任务或平台 HTTP 路由，不自行作出学生资格与存储贡献结论。
+`bhpan` 是服务端 Go 适配库，提供北航云盘登录、容量、文件、上传、下载与分享操作。授权、凭据生命周期和贡献容量规则由调用方管理。模块职责见[接入设计](../design/storage-adapter.md)。
 
 接口路径和字段参考[旧项目协议入口](https://github.com/StuHelper/StuHelper-legacy/tree/4c6d67a2fb8184e935d0aad9e33ce5c18fea6ac3/server/internal/modules/storage/bhpan)。实现与测试重新编写，不导入旧模块、复制其源码或复用其测试夹具。
 
-本地账号登录补充参考[供应商登录脚本](https://bhpan.buaa.edu.cn/oauth2/_next/static/chunks/pages/signin-c48cff0def79ace2ad81.js)。脚本提供 RSA 公钥、加密方式、CSRF 字段和登录响应约定；公钥属于协议材料。
+本地账号登录参考供应商登录脚本中的 RSA 公钥、加密方式、CSRF 字段和登录响应。脚本地址及 SHA-256 保存在来源记录中。
 
-供应商没有提供本次可用的版本化 OpenAPI。本仓库维护观测到的[接口快照](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.openapi.json)与[来源记录](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.source.json)，记录观察日期、参考提交和摘要。该快照不代表供应商完整接口，也不是平台对外 API。
+本仓库依据实际观测维护供应商协议快照，覆盖适配库调用的操作。来源记录包含观测日期、参考提交和摘要。[接口快照](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.openapi.json) · [来源记录](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.source.json)
 
 ## 登录与会话
 
-`Login` 明确使用北航 SSO。先取得 CAS execution 字段，提交用户名与密码，再完成网盘 OAuth challenge 和回调。最终必须取得网盘 token，并成功读取个人文档库，才返回登录成功。登录返回的用户中心页面不作为成功证明，也不需要跟随其 HTTP 跳转。
+`Login` 明确使用北航 SSO。先取得 CAS execution 字段，提交用户名与密码，再完成云盘 OAuth challenge 和回调。登录成功要求取得云盘 token，并读取非空且每项 ID 有效的文档库列表。
 
-`LoginLocal` 明确使用网盘本地账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
+`LoginLocal` 明确使用云盘本地账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
 
-供应商登录脚本成功时用浏览器的 `window.location.replace` 打开 `redirect`。客户端接收单斜杠开头的根相对地址和同源 HTTPS 绝对地址，保留 OAuth 查询参数及同源中间跳转。最终响应须到达网盘的 `/anyshare/oauth2/login/callback`。
+供应商登录脚本成功时用浏览器的 `window.location.replace` 打开 `redirect`。客户端接收单斜杠开头的根相对地址和同源 HTTPS 绝对地址，保留 OAuth 查询参数及同源中间跳转。最终响应须到达云盘的 `/anyshare/oauth2/login/callback`。
 
 回调链拒绝 `//` 开头的地址、跨源目标、HTTP、用户信息、URL 片段和路径中的转义分隔符或反斜杠。目标检查失败返回 `local-callback` 操作和 `ErrDestination`，响应内容与地址不进入错误。
 
@@ -34,7 +34,9 @@ updated: 2026-11-21
 
 ## 文件与传输
 
-文档库、目录、容量、目录大小和回收站使用供应商实际值。`PersonalLibrary` 严格筛选唯一的 `user_doc_lib` 个人文档库，不以群组或部门文档库替代。容量减少导致已用量超过分配量时，保留这两个值，可用容量按零返回。回收站接口显式接收分页参数。
+`PersonalLibrary` 从供应商列表筛选唯一的 `user_doc_lib`。缺少个人库返回 `ErrNotFound`，存在多个个人库返回 `ErrProtocol`。回收站接口显式接收分页参数。
+
+`Quota` 返回整个账号的 `Allocated`（分配量）与 `Used`（已用量），单位均为字节。任一字段缺失或为负数时返回 `ErrProtocol`。已用量超过分配量时保留原值，`Available()` 返回零。目录占用通过 `DirectorySize` 单独查询。
 
 `Identity` 取得当前登录用户的供应商稳定标识，供上层识别账号故障域。只返回用户 ID，不保留姓名、邮箱或其他个人资料。缺少 ID、账号类型不是用户或授权失败时拒绝，不以文档库名称、登录别名或目录代替账号标识。
 
@@ -60,7 +62,7 @@ updated: 2026-11-21
 
 ## 网络与错误
 
-配置只接受 HTTPS origin，默认仅允许网盘对象地址。额外对象 origin 必须由服务端配置，端口也参与校验。HTTPS 默认端口 443 统一处理；URL 用户信息、片段、非授权地址均被拒绝，对象存储 `3xx` 重定向明确返回 `ErrDestination`。
+配置只接受 HTTPS origin，默认仅允许云盘对象地址。额外对象 origin 必须由服务端配置，端口也参与校验。HTTPS 默认端口 443 统一处理；URL 用户信息、片段、非授权地址均被拒绝，对象存储 `3xx` 重定向明确返回 `ErrDestination`。
 
 对象上传仅附带签名要求的非空单值 Authorization、Content-Type 和 X-Amz-Date，下载授权禁止附带额外签名头。对象请求不携带个人 token 或 cookie。临时签名在本进程最多使用十分钟，到期返回独立的 `ErrGrantExpired`，不与账号会话失效混淆。
 
@@ -76,10 +78,10 @@ updated: 2026-11-21
 
 | 场景 | 预期结果 |
 | --- | --- |
-| BH-01 | SSO 必须完成网盘 token 与文档库验证；失败重登清除旧会话 |
+| BH-01 | SSO 必须完成云盘 token 与文档库验证；失败重登清除旧会话 |
 | BH-02 | 本地账号通过 CSRF 与 RSA 加密提交一次，完成同源绝对或根相对回调后可读取身份、目录和容量。无效回调目标不会收到请求 |
 | BH-03 | 交互验证、外站跳转、取消、无效或超限响应明确失败，错误不暴露敏感内容 |
-| BH-04 | 容量、文件操作和回收站分页遵守接口字段，过量使用不会形成负可用量 |
+| BH-04 | 返回供应商容量原值，已用量超过分配量时剩余为零；文件操作和回收站分页遵守供应商接口 |
 | BH-05 | 上传与下载授权不携带个人会话，恶意 origin、签名头或重定向被拒绝 |
 | BH-06 | 分片顺序、授权与 ETag 完整，对象完成失败时不确认文件 |
 | BH-07 | 分享操作保持个人与分享会话隔离，临时 token 不进入 JSON |
