@@ -29,6 +29,32 @@ CwIDAQAB
 -----END PUBLIC KEY-----`
 
 var scriptTag = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
+var escapedPathDelimiter = regexp.MustCompile(`(?i)%(?:23|25|2f|3a|3f|40|5b|5c|5d)`)
+
+func localOAuthReference(raw string) bool {
+	return raw != "" && strings.TrimSpace(raw) == raw && !strings.HasPrefix(raw, "//") && !strings.ContainsAny(raw, "\\#")
+}
+
+func (c *Client) localOAuthDestination(u *url.URL) bool {
+	return u.Scheme == "https" && originOf(u) == c.cloud && u.User == nil && u.Fragment == "" &&
+		!strings.HasPrefix(u.Path, "//") && !escapedPathDelimiter.MatchString(u.EscapedPath())
+}
+
+func (c *Client) localSigninRedirect(raw string) (*url.URL, error) {
+	if !localOAuthReference(raw) {
+		return nil, ErrDestination
+	}
+	// The provider's browser client resolves a leading slash against the cloud
+	// origin. Network-path references are rejected before adding that origin.
+	if strings.HasPrefix(raw, "/") {
+		raw = c.cloud + raw
+	}
+	dest, err := url.Parse(raw)
+	if err != nil || !c.localOAuthDestination(dest) {
+		return nil, ErrDestination
+	}
+	return dest, nil
+}
 
 func resolveLocalPublicKey(override string) (*rsa.PublicKey, error) {
 	if override == "" {
@@ -232,11 +258,19 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		}
 		return ErrProtocol
 	}
-	dest, e := url.Parse(reply.Redirect)
-	if e != nil || dest.User != nil || originOf(dest) != c.cloud || dest.Fragment != "" {
-		return ErrDestination
+	dest, err := c.localSigninRedirect(reply.Redirect)
+	if err != nil {
+		return &Error{Operation: "local-callback", Status: status, Kind: err}
 	}
-	cbBody, cbHeaders, final, status, err := request(ctx, c.client, "local-callback", "GET", dest.String(), "", "", nil)
+	// Local login must stay on the cloud origin, including intermediate OAuth
+	// redirects. The shared client also accepts CAS, which is only used by SSO.
+	local.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if !localOAuthReference(req.Response.Header.Get("Location")) || !c.localOAuthDestination(req.URL) {
+			return ErrDestination
+		}
+		return c.client.CheckRedirect(req, via)
+	}
+	cbBody, cbHeaders, final, status, err := request(ctx, &local, "local-callback", "GET", dest.String(), "", "", nil)
 	if err != nil {
 		return err
 	}
