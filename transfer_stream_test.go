@@ -136,7 +136,7 @@ func TestStreamTransfersOutliveRequestTimeoutAndAbortStalls(t *testing.T) {
 	t.Cleanup(server.Close)
 	base = server.URL
 
-	c, err := New(Config{CloudURL: base, SSOURL: base, Transport: server.Client().Transport, Timeout: 80 * time.Millisecond})
+	c, err := New(Config{CloudURL: base, Transport: server.Client().Transport, Timeout: 80 * time.Millisecond})
 	check(t, err)
 	t.Cleanup(c.Close)
 	c.token = "fixture-token"

@@ -33,7 +33,7 @@ func startProbeFixture(t *testing.T, libs []bhpan.Library) (*httptest.Server, *a
 			_ = json.NewEncoder(w).Encode(v)
 		}
 		var body map[string]any
-		if r.Method == "POST" && r.URL.Path != "/login" && r.URL.Path != "/object" {
+		if r.Method == "POST" && r.URL.Path != "/oauth2/signin" && r.URL.Path != "/object" {
 			_ = json.NewDecoder(r.Body).Decode(&body)
 		}
 		docID, _ := body["docid"].(string)
@@ -42,19 +42,14 @@ func startProbeFixture(t *testing.T, libs []bhpan.Library) (*httptest.Server, *a
 		}
 
 		switch r.URL.Path {
-		case "/login":
-			if r.URL.Query().Get("service") != "" {
-				http.Redirect(w, r, base+"/anyshare/oauth2/login/callback", 302)
-				return
-			}
-			if r.Method == "GET" {
-				fmt.Fprint(w, `<input type="hidden" name="execution" value="exec-1">`)
-				return
-			}
-			http.SetCookie(w, &http.Cookie{Name: "sso", Value: "ok", Path: "/"})
-			http.Redirect(w, r, "http://uc.buaa.edu.cn/", 302)
 		case "/anyshare/oauth2/login":
-			http.Redirect(w, r, "/anyshare/oauth2/login/callback", 302)
+			http.Redirect(w, r, "/oauth2/signin?login_challenge=fixture", http.StatusFound)
+		case "/oauth2/signin":
+			if r.Method == "GET" {
+				fmt.Fprint(w, `<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"challenge":"fixture","csrftoken":"fixture","device":{},"authconfig":{}}}}</script>`)
+			} else {
+				fmt.Fprint(w, `{"redirect":"/anyshare/oauth2/login/callback"}`)
+			}
 		case "/anyshare/oauth2/login/callback":
 			http.SetCookie(w, &http.Cookie{Name: "client.oauth2_token", Value: "probe-token", Path: "/"})
 			fmt.Fprint(w, "ok")
@@ -193,8 +188,8 @@ func TestProbeSelectsPersonalLibraryAndRefusesSharedFallback(t *testing.T) {
 		{ID: "gns://dept-lib", Name: "Department Shared", Type: "department_doc_lib"},
 		{ID: "gns://personal-lib", Name: "Personal", Type: "user_doc_lib"},
 	})
-	cfg1 := bhpan.Config{CloudURL: s1.URL, SSOURL: s1.URL, Transport: s1.Client().Transport, Timeout: time.Second}
-	res1, failed1 := probeAccount(ctx, cfg1, 1, Account{Username: "u", Password: "p", Mode: "sso"}, Input{Files: true})
+	cfg1 := bhpan.Config{CloudURL: s1.URL, Transport: s1.Client().Transport, Timeout: time.Second}
+	res1, failed1 := probeAccount(ctx, cfg1, 1, Account{Username: "u", Password: "p"}, Input{Files: true})
 	if failed1 || res1["file_lifecycle"] != true || res1["temporary_directory_removed"] != true {
 		t.Fatalf("expected personal library probe to succeed, got failed=%v res=%v", failed1, res1)
 	}
@@ -210,9 +205,9 @@ func TestProbeSelectsPersonalLibraryAndRefusesSharedFallback(t *testing.T) {
 	s2, deptTouches2, parents2 := startProbeFixture(t, []bhpan.Library{
 		{ID: "gns://dept-lib", Name: "Department Shared", Type: "department_doc_lib"},
 	})
-	cfg2 := bhpan.Config{CloudURL: s2.URL, SSOURL: s2.URL, Transport: s2.Client().Transport, Timeout: time.Second}
+	cfg2 := bhpan.Config{CloudURL: s2.URL, Transport: s2.Client().Transport, Timeout: time.Second}
 	for _, writeFiles := range []bool{false, true} {
-		res, failed := probeAccount(ctx, cfg2, 1, Account{Username: "u", Password: "p", Mode: "sso"}, Input{Files: writeFiles})
+		res, failed := probeAccount(ctx, cfg2, 1, Account{Username: "u", Password: "p"}, Input{Files: writeFiles})
 		if !failed || res["error"] != "probe: personal library not found" {
 			t.Fatalf("files=%v: expected missing personal library error, got %v", writeFiles, res)
 		}
@@ -226,8 +221,8 @@ func TestProbeSelectsPersonalLibraryAndRefusesSharedFallback(t *testing.T) {
 		{ID: "gns://personal-1", Name: "Personal 1", Type: "user_doc_lib"},
 		{ID: "gns://personal-2", Name: "Personal 2", Type: "user_doc_lib"},
 	})
-	cfg3 := bhpan.Config{CloudURL: s3.URL, SSOURL: s3.URL, Transport: s3.Client().Transport, Timeout: time.Second}
-	if _, failed3 := probeAccount(ctx, cfg3, 1, Account{Username: "u", Password: "p", Mode: "sso"}, Input{Files: true}); !failed3 || len(parents3()) != 0 {
+	cfg3 := bhpan.Config{CloudURL: s3.URL, Transport: s3.Client().Transport, Timeout: time.Second}
+	if _, failed3 := probeAccount(ctx, cfg3, 1, Account{Username: "u", Password: "p"}, Input{Files: true}); !failed3 || len(parents3()) != 0 {
 		t.Fatalf("expected ambiguous personal libraries to fail without creating directories, parents=%v", parents3())
 	}
 	_ = parents1

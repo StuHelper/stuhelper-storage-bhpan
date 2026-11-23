@@ -6,59 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 )
-
-func TestSSOLoginDetectsCaptchaAndMFAChallenges(t *testing.T) {
-	ctx := context.Background()
-
-	// 1. Active captcha/OTP on GET /login returns ErrChallenge without submitting password.
-	for _, field := range []string{"captcha", "captchaResponse", "vcode", "otp", "dynamicCode"} {
-		t.Run("get-"+field, func(t *testing.T) {
-			var postHits atomic.Int32
-			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/login" && r.Method == "GET" {
-					fmt.Fprintf(w, `<form><input type="hidden" name="execution" value="t1"><input type="text" name="%s" title="not disabled in this flow"></form>`, field)
-					return
-				}
-				if r.Method == "POST" {
-					postHits.Add(1)
-				}
-				w.WriteHeader(400)
-			})
-			err := c.Login(ctx, "student", "secret-password")
-			if !errors.Is(err, ErrChallenge) {
-				t.Fatalf("expected ErrChallenge, got %v", err)
-			}
-			if postHits.Load() != 0 {
-				t.Fatalf("password submitted despite pre-login challenge (%d POSTs)", postHits.Load())
-			}
-		})
-	}
-
-	// 2. Captcha or MFA returned after POST /login alongside execution returns ErrChallenge, not ErrCredentials.
-	for _, htmlBody := range []string{
-		`<form><input name="execution" value="t2"><input type="text" name="captcha"></form>`,
-		`<form><input name="execution" value="t2"><input name="otp" type="text"></form>`,
-	} {
-		c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/login" && r.Method == "GET" {
-				fmt.Fprint(w, `<input type="hidden" name="execution" value="t1"><input type="hidden" name="captcha" value=""><input name="vcode" disabled>`)
-				return
-			}
-			w.WriteHeader(200)
-			fmt.Fprint(w, htmlBody)
-		})
-		err := c.Login(ctx, "student", "secret-password")
-		if !errors.Is(err, ErrChallenge) || errors.Is(err, ErrCredentials) {
-			t.Fatalf("expected ErrChallenge on POST challenge, got %v", err)
-		}
-	}
-}
 
 func TestLocalLoginDetectsCaptchaAndMFAResponses(t *testing.T) {
 	ctx := context.Background()
@@ -126,97 +76,8 @@ func TestLocalLoginDetectsCaptchaAndMFAResponses(t *testing.T) {
 	}
 }
 
-type interceptPortalTransport struct {
-	inner      http.RoundTripper
-	portalHits atomic.Int32
-}
-
-func (t *interceptPortalTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if strings.EqualFold(req.URL.Hostname(), "uc.buaa.edu.cn") {
-		t.portalHits.Add(1)
-		return &http.Response{
-			StatusCode: 200,
-			Header:     make(http.Header),
-			Body:       http.NoBody,
-			Request:    req,
-		}, nil
-	}
-	return t.inner.RoundTrip(req)
-}
-
-func TestRedirectBoundariesAndObjectStore3xx(t *testing.T) {
+func TestObjectStoreRedirectRejected(t *testing.T) {
 	ctx := context.Background()
-
-	// 1. uc.buaa.edu.cn redirects (without trailing slash, http or https, or subpath) must never be followed.
-	for _, location := range []string{
-		"http://uc.buaa.edu.cn",
-		"https://uc.buaa.edu.cn",
-		"https://uc.buaa.edu.cn/index",
-		"//uc.buaa.edu.cn/",
-	} {
-		t.Run(location, func(t *testing.T) {
-			var cloud string
-			validate := contractValidator(t)
-			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				validate(r)
-				switch r.URL.Path {
-				case "/login":
-					if r.URL.Query().Get("service") != "" {
-						http.Redirect(w, r, cloud+"/anyshare/oauth2/login/callback", 302)
-						return
-					}
-					if r.Method == "GET" {
-						fmt.Fprint(w, `<input type="hidden" name="execution" value="exec-1">`)
-						return
-					}
-					http.SetCookie(w, &http.Cookie{Name: "sso", Value: "ok", Path: "/"})
-					w.Header().Set("Location", location)
-					w.WriteHeader(302)
-				case "/anyshare/oauth2/login":
-					http.Redirect(w, r, "/anyshare/oauth2/login/callback", 302)
-				case "/anyshare/oauth2/login/callback":
-					http.SetCookie(w, &http.Cookie{Name: "client.oauth2_token", Value: "tok", Path: "/"})
-					fmt.Fprint(w, "ok")
-				case "/anyshare/oauth2/login/refreshToken":
-					fmt.Fprint(w, "ok")
-				case "/api/efast/v1/owned-doc-lib":
-					reply(w, []any{map[string]string{"id": "root", "name": "Drive"}})
-				default:
-					w.WriteHeader(404)
-				}
-			}))
-			t.Cleanup(server.Close)
-			cloud = server.URL
-			tr := &interceptPortalTransport{inner: server.Client().Transport}
-			c, err := New(Config{CloudURL: cloud, SSOURL: cloud, Transport: tr, Timeout: time.Second})
-			check(t, err)
-			t.Cleanup(c.Close)
-
-			if err := c.Login(ctx, "student", "pw"); err != nil {
-				t.Fatalf("login failed for portal %s: %v", location, err)
-			}
-			if tr.portalHits.Load() != 0 {
-				t.Fatalf("client followed redirect to uc.buaa.edu.cn (%d hits)", tr.portalHits.Load())
-			}
-		})
-	}
-
-	// Portal URL with userinfo or fragment must be rejected as ErrDestination.
-	for _, badPortal := range []string{"https://user@uc.buaa.edu.cn/", "https://uc.buaa.edu.cn/#frag"} {
-		c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/login" && r.Method == "GET" {
-				fmt.Fprint(w, `<input type="hidden" name="execution" value="exec-1">`)
-				return
-			}
-			w.Header().Set("Location", badPortal)
-			w.WriteHeader(302)
-		})
-		if err := c.Login(ctx, "student", "pw"); !errors.Is(err, ErrDestination) {
-			t.Fatalf("expected ErrDestination for %s, got %v", badPortal, err)
-		}
-	}
-
-	// 2. Object store 3xx redirect must return ErrDestination, not retryable ErrUnavailable.
 	var base string
 	c, s := fixture(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

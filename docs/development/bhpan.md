@@ -1,14 +1,14 @@
 ---
 type: development
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # BHpan 实施状态
 
 ## 当前实现
 
-独立 Go 适配库支持 SSO 与云盘本地账号登录、显式会话续期、交互挑战分类、稳定账号和文件标识、个人文档库、容量、文件和回收站。传输覆盖普通与分片上传、秒传、归档和分段下载，以及分享管理、匿名预检和解析。
+独立 Go 适配库支持 通过 BHpan 官方入口登录、显式会话续期、交互挑战分类、稳定账号和文件标识、个人文档库、容量、文件和回收站。传输覆盖普通与分片上传、秒传、归档和分段下载，以及分享管理、匿名预检和解析。
 
 backend 已通过 storage 的 BHpan 驱动装配本库。当前 develop 支持同源根相对回调和同源中间跳转。storage 驱动采集云盘原始配额，业务层独立管理写入预算和贡献申报。职责见[接入设计](../design/storage-adapter.md)。
 
@@ -18,7 +18,7 @@ backend 已通过 storage 的 BHpan 驱动装配本库。当前 develop 支持�
 
 本地登录回调回归使用 TLS 夹具覆盖 19 个子用例。接受根相对地址、同源绝对地址及同源中间跳转，核对认证只提交一次、有效会话能读取身份与容量，以及拒绝的外部目标未获请求。[回归测试](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/8695e00e68688eb532d414aff776f69b2b1d1d01/local_auth_redirect_test.go)
 
-获准账号曾通过 SSO 和云盘本地登录，完成文档库、容量读取、普通与分片传输、内容摘要核对、文件生命周期和密码分享。短时续期验证覆盖登录后和闲置十二分钟后的刷新与读取。
+获准账号曾通过云盘登录，完成文档库、容量读取、普通与分片传输、内容摘要核对、文件生命周期和密码分享。短时续期验证覆盖登录后和闲置十二分钟后的刷新与读取。
 
 StuHelper v0.1.31 的正式组合使用 BHpan v0.1.1。根相对回调修复已进入 develop。[正式组合](https://github.com/StuHelper/stuhelper/blob/v0.1.31/workspace.lock.json)
 

@@ -1,7 +1,7 @@
 ---
 type: guide
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # BHpan 使用与验证
@@ -16,7 +16,7 @@ updated: 2026-11-21
 
 BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已验证版本或提交，构建时设置 `GOWORK=off`。本地可以通过 go.work 引入任务工作树，正式依赖不保存本机 replace 路径。
 
-以 `github.com/StuHelper/stuhelper-storage-bhpan` 导入包。调用 `New` 创建独立客户端，根据账号类型选择 `Login` 或 `LoginLocal`，退出时调用 `Close`。各请求传入具有截止时间的 context，不把一个客户端复用于多个同时登录的账号。
+以 `github.com/StuHelper/stuhelper-storage-bhpan` 导入包。调用 `New` 创建独立客户端，根据账号类型选择 `LoginLocal`，退出时调用 `Close`。各请求传入具有截止时间的 context，不把一个客户端复用于多个同时登录的账号。
 
 调用 `PersonalLibrary` 获取唯一的个人文档库，或使用 `Libraries` 读取全部文档库。使用 `Quota` 查询账号的原始空间，使用 `DirectorySize` 查询指定目录的占用。容量口径见[适配规格](../spec/bhpan.md)。
 
@@ -30,7 +30,7 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 ## 真实账号验证
 
-`go run ./cmd/bhpan-probe` 从标准输入读取一个 JSON 对象。`Accounts` 最多包含两个账号，每项包含 `Username`、`Password` 和 `Mode`；Mode 为 `sso` 或 `local`，留空时使用 SSO。不要把凭据放入命令参数、源码、普通文件或终端历史。
+`go run ./cmd/bhpan-probe` 从标准输入读取一个 JSON 对象。`Accounts` 最多包含两个账号，每项包含学校统一身份认证账号 `Username` 和密码 `Password`。不要把凭据放入命令参数、源码、普通文件或终端历史。
 
 默认只验证登录、稳定身份、文档库、容量和个人文档库根目录读取。`Files=true` 仅在唯一的 `user_doc_lib` 个人文档库中创建随机命名的临时目录，验证普通上传下载、重命名、复制、移动、回收站恢复和彻底删除；缺少个人库时报错退出，不向部门库或群组库写入。程序只清理该次生成的目录，不删除既有文件。
 
@@ -42,7 +42,7 @@ BHpan 位于独立 Go module 根包。正式消费者在 go.mod 固定本仓已�
 
 ## 能力边界
 
-遇到交互验证时，通过 `ChallengeOf` 判断 `ErrChallenge` 对应的 `risk_confirm`、`captcha` 或 `mfa`。验证码和双因素需用户交互。调用方取得用户对异地登录风险的明确确认后，可调用 `LoginWithOptions` 并传入 `AcknowledgeRisk: true` 续接。
+遇到图形验证码或多因素验证时，登录返回 `ErrChallenge`。调用方可通过 `ChallengeOf` 读取分类，由用户完成交互。
 
 使用方需要定期续期时负责调度 `RefreshSession`。供应商失败按[适配规格](../spec/bhpan.md)返回，由使用方依据错误类别决定是否重试。
 
