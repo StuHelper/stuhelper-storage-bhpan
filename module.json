@@ -11,11 +11,6 @@
     "docs/spec/bhpan.md"
   ],
   "scenario_tests": {
-    "BH-01": [
-      "client_test.go#TestSSOLoginAndSessionReset",
-      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
-      "client_resilience_test.go#TestCloseDoesNotBlockOnSlowAPIRequest"
-    ],
     "BH-02": [
       "client_test.go#TestLocalLoginEncryptsCredentials",
       "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses",
@@ -23,10 +18,8 @@
       "local_auth_redirect_test.go#TestLocalLoginRedirectTargets"
     ],
     "BH-03": [
-      "client_test.go#TestLoginRiskAndUntrustedRedirect",
       "client_test.go#TestResponseBoundsAndSafeErrors",
       "client_test.go#TestMalformedMetadataNeverBecomesEmptySuccess",
-      "auth_redirect_test.go#TestSSOLoginDetectsCaptchaAndMFAChallenges",
       "auth_redirect_test.go#TestLocalLoginDetectsCaptchaAndMFAResponses",
       "client_resilience_test.go#TestResponseBodyInterruptionAndContextCancellation"
     ],
@@ -41,7 +34,7 @@
       "transfer_stream_test.go#TestStreamTransfersOutliveRequestTimeoutAndAbortStalls",
       "transfer_stream_test.go#TestUploadStreamLengthAndSourceErrors",
       "transfer_stream_test.go#TestDownloadPreservesDestinationWriteErrors",
-      "auth_redirect_test.go#TestRedirectBoundariesAndObjectStore3xx",
+      "auth_redirect_test.go#TestObjectStoreRedirectRejected",
       "client_resilience_test.go#TestGrantHeaderStrictnessAndExpirationDistinctFromSession",
       "client_test.go#TestStreamLengthMismatchAndConcurrentClose"
     ],
@@ -82,9 +75,6 @@
     ],
     "BH-14": [
       "upload_library_test.go#TestPersonalLibraryUploadResultAndPartGrant"
-    ],
-    "BH-15": [
-      "challenge_test.go#TestChallengeClassificationAndRiskConfirmation"
     ],
     "BH-16": [
       "share_inspect_test.go#TestParseShareURLAndInspectShare"

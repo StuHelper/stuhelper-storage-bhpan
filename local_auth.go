@@ -28,6 +28,8 @@ t1a4pg6Xu9+HFcEuqwJTDxATvGAz1/YW0oUisjM0ObKTRDVSfnTYeaBsN6L+M+8g
 CwIDAQAB
 -----END PUBLIC KEY-----`
 
+var attribute = regexp.MustCompile(`(?is)\s+([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?`)
+
 var scriptTag = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
 var escapedPathDelimiter = regexp.MustCompile(`(?i)%(?:23|25|2f|3a|3f|40|5b|5c|5d)`)
 
@@ -161,8 +163,7 @@ func localSigninChallenge(body []byte, captchaEnabled bool, captchaAfter int) Ch
 	return ChallengeUnknown
 }
 
-// LoginLocal authenticates a cloud-local account. It is never used as a fallback
-// for a failed CAS login; credentials are only sent to the selected authority.
+// LoginLocal authenticates with the configured cloud origin.
 func (c *Client) LoginLocal(ctx context.Context, username, password string) (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -263,7 +264,7 @@ func (c *Client) LoginLocal(ctx context.Context, username, password string) (err
 		return &Error{Operation: "local-callback", Status: status, Kind: err}
 	}
 	// Local login must stay on the cloud origin, including intermediate OAuth
-	// redirects. The shared client also accepts CAS, which is only used by SSO.
+	// redirects. Check each raw Location as well as the resolved destination.
 	local.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if !localOAuthReference(req.Response.Header.Get("Location")) || !c.localOAuthDestination(req.URL) {
 			return ErrDestination

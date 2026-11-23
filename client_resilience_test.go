@@ -36,7 +36,6 @@ func TestResponseBodyInterruptionAndContextCancellation(t *testing.T) {
 	// 1. Mid-body network interruption after HTTP 200 header must report ErrUnavailable, not ErrProtocol.
 	c, err := New(Config{
 		CloudURL: "https://bhpan.buaa.edu.cn",
-		SSOURL:   "https://sso.buaa.edu.cn",
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: 200,
@@ -60,7 +59,6 @@ func TestResponseBodyInterruptionAndContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c2, err := New(Config{
 		CloudURL: "https://bhpan.buaa.edu.cn",
-		SSOURL:   "https://sso.buaa.edu.cn",
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			if r.URL.Path == "/api/efast/v1/file/osbeginupload" {
 				body := `{"docid":"f1","rev":"r1","authrequest":["PUT","https://bhpan.buaa.edu.cn/object","Authorization: sig","X-Amz-Date: now","Content-Type: application/octet-stream"]}`
@@ -103,7 +101,6 @@ func TestCloseDoesNotBlockOnSlowAPIRequest(t *testing.T) {
 	release := make(chan struct{})
 	c, err := New(Config{
 		CloudURL: "https://bhpan.buaa.edu.cn",
-		SSOURL:   "https://sso.buaa.edu.cn",
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			close(entered)
 			<-release

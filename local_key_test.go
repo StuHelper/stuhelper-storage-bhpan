@@ -61,8 +61,8 @@ func TestLocalPublicKeyOverrideAndScriptOrder(t *testing.T) {
 	base = server.URL
 
 	c, err := New(Config{
-		CloudURL:          base,
-		SSOURL:            base,
+		CloudURL: base,
+
 		Transport:         server.Client().Transport,
 		Timeout:           2 * time.Second,
 		LocalPublicKeyPEM: pubPEM,

@@ -415,7 +415,7 @@ func TestAllContractOperationsAndPublicShare(t *testing.T) {
 	server := httptest.NewTLSServer(contractMiddleware(t, true, seenOps, &mu, handler))
 	t.Cleanup(server.Close)
 	base = server.URL
-	c, err := New(Config{CloudURL: base, SSOURL: base, Transport: server.Client().Transport, Timeout: 2 * time.Second})
+	c, err := New(Config{CloudURL: base, Transport: server.Client().Transport, Timeout: 2 * time.Second})
 	check(t, err)
 	t.Cleanup(c.Close)
 	ctx := context.Background()

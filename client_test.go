@@ -29,7 +29,7 @@ func newFixture(t *testing.T, checkResponse bool, h http.HandlerFunc) (*Client, 
 	t.Helper()
 	server := httptest.NewTLSServer(contractMiddleware(t, checkResponse, nil, nil, h))
 	t.Cleanup(server.Close)
-	c, e := New(Config{CloudURL: server.URL, SSOURL: server.URL, Transport: server.Client().Transport, Timeout: time.Second})
+	c, e := New(Config{CloudURL: server.URL, Transport: server.Client().Transport, Timeout: time.Second})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -44,113 +44,6 @@ func check(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestSSOLoginAndSessionReset(t *testing.T) {
-	var cloud string
-	reject := false
-	c, s := fixture(t, func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/login":
-			if r.URL.Query().Get("service") != "" {
-				http.Redirect(w, r, cloud+"/anyshare/oauth2/login/callback", 302)
-				return
-			}
-			if r.Method == "GET" {
-				fmt.Fprint(w, `<input value='ticket&amp;value' type='hidden' name='execution'>`)
-				return
-			}
-			if e := r.ParseForm(); e != nil {
-				t.Error(e)
-			}
-			if r.Form.Get("execution") != "ticket&value" || r.Form.Get("type") != "username_password" || r.Form.Get("_eventId") != "submit" {
-				t.Error("incorrect CAS fields")
-			}
-			if reject {
-				w.WriteHeader(401)
-				fmt.Fprint(w, `<input name="execution" value="again">`)
-				return
-			}
-			http.SetCookie(w, &http.Cookie{Name: "sso", Value: "test-session", Path: "/"})
-			http.Redirect(w, r, "http://uc.buaa.edu.cn/", 302)
-		case "/anyshare/oauth2/login":
-			http.Redirect(w, r, "/oauth2/signin?login_challenge=fixture", 302)
-		case "/oauth2/signin":
-			fmt.Fprint(w, "sign in")
-		case "/anyshare/oauth2/login/callback":
-			if _, e := r.Cookie("login_challenge"); e != nil {
-				t.Error("missing login challenge cookie")
-			}
-			http.SetCookie(w, &http.Cookie{Name: "client.oauth2_token", Value: "fixture-token", Path: "/"})
-			fmt.Fprint(w, "callback")
-		case "/api/efast/v1/owned-doc-lib":
-			if r.Header.Get("Authorization") != "Bearer fixture-token" {
-				t.Error("missing bearer")
-			}
-			reply(w, []any{map[string]any{"id": "root", "name": "Test"}})
-		default:
-			t.Errorf("unexpected path %s", r.URL.Path)
-			w.WriteHeader(404)
-		}
-	})
-	cloud = s.URL
-	check(t, c.Login(context.Background(), "fixture", "fixture-password"))
-	if c.token != "fixture-token" {
-		t.Fatal("session not established")
-	}
-	reject = true
-	if e := c.Login(context.Background(), "fixture", "wrong"); !errors.Is(e, ErrCredentials) {
-		t.Fatal(e)
-	}
-	if _, e := c.Libraries(context.Background()); !errors.Is(e, ErrSession) {
-		t.Fatal("failed login retained session", e)
-	}
-	base, _ := url.Parse(cloud)
-	if len(c.client.Jar.Cookies(base)) != 0 {
-		t.Fatal("failed login retained cookies")
-	}
-}
-
-func TestLoginRiskAndUntrustedRedirect(t *testing.T) {
-	for _, kind := range []string{"risk", "redirect", "no-token"} {
-		t.Run(kind, func(t *testing.T) {
-			c, _ := fixture(t, func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/login" && r.Method == "GET" {
-					fmt.Fprint(w, `<input name="execution" value="fixture">`)
-					return
-				}
-				if r.Method == "POST" {
-					switch kind {
-					case "risk":
-						fmt.Fprint(w, `<form id="continueForm"><input name="execution" value="fixture"></form>`)
-					case "redirect":
-						http.Redirect(w, r, "https://untrusted.example/login", 307)
-					default:
-						fmt.Fprint(w, "ok")
-					}
-					return
-				}
-				http.Redirect(w, r, "/anyshare/oauth2/login/callback", 302)
-			})
-			err := c.Login(context.Background(), "fixture", "private-password")
-			expected := ErrSession
-			if kind == "risk" {
-				expected = ErrChallenge
-			}
-			if kind == "redirect" {
-				expected = ErrDestination
-			}
-			if err == nil {
-				t.Fatal("unexpected login success")
-			}
-			if kind != "no-token" && !errors.Is(err, expected) {
-				t.Fatalf("%v", err)
-			}
-			if strings.Contains(err.Error(), "private-password") {
-				t.Fatal("credential leaked")
-			}
-		})
 	}
 }
 

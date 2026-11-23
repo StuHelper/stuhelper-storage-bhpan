@@ -56,21 +56,14 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 		defer mu.Unlock()
 
 		switch r.URL.Path {
-		case "/login":
-			if r.URL.Query().Get("service") != "" {
-				http.Redirect(w, r, base+"/anyshare/oauth2/login/callback", http.StatusFound)
-				return
-			}
-			if r.Method == http.MethodGet {
-				fmt.Fprint(w, `<input name="execution" value="exec-1">`)
-				return
-			}
-			http.SetCookie(w, &http.Cookie{Name: "sso", Value: "s1", Path: "/"})
-			http.Redirect(w, r, "http://uc.buaa.edu.cn/", http.StatusFound)
 		case "/anyshare/oauth2/login":
-			http.Redirect(w, r, "/oauth2/signin?login_challenge=ch1", http.StatusFound)
+			http.Redirect(w, r, "/oauth2/signin?login_challenge=fixture", http.StatusFound)
 		case "/oauth2/signin":
-			fmt.Fprint(w, "signin")
+			if r.Method == "GET" {
+				fmt.Fprint(w, `<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"challenge":"fixture","csrftoken":"fixture","device":{},"authconfig":{}}}}</script>`)
+			} else {
+				fmt.Fprint(w, `{"redirect":"/anyshare/oauth2/login/callback"}`)
+			}
 		case "/anyshare/oauth2/login/callback":
 			http.SetCookie(w, &http.Cookie{Name: "client.oauth2_token", Value: "probe-token", Path: "/"})
 			fmt.Fprint(w, "ok")
@@ -275,9 +268,9 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 	t.Cleanup(srv.Close)
 	base = srv.URL
 
-	cfg := bhpan.Config{CloudURL: base, SSOURL: base, Transport: srv.Client().Transport, Timeout: 5 * time.Second}
+	cfg := bhpan.Config{CloudURL: base, Transport: srv.Client().Transport, Timeout: 5 * time.Second}
 	stdinJSON, _ := json.Marshal(Input{
-		Accounts:        []Account{{Username: "probe-secret-user", Password: "probe-secret-password", Mode: "sso"}},
+		Accounts:        []Account{{Username: "probe-secret-user", Password: "probe-secret-password"}},
 		Files:           true,
 		Multipart:       true,
 		Shares:          true,
@@ -313,7 +306,7 @@ func TestProbeFullLifecycleWithOptionalCapabilities(t *testing.T) {
 	if err := Run(context.Background(), cfg, strings.NewReader(`{}`), &bytes.Buffer{}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
 	}
-	if err := Run(context.Background(), cfg, strings.NewReader(`{"Accounts":[{"Username":"u","Password":"p","Mode":"bad"}]}`), &bytes.Buffer{}); !errors.Is(err, ErrInvalidMode) {
-		t.Fatalf("expected ErrInvalidMode, got %v", err)
+	if err := Run(context.Background(), cfg, strings.NewReader(`{"Accounts":[{"Username":"u","Password":"p","Mode":"bad"}]}`), &bytes.Buffer{}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
 	}
 }

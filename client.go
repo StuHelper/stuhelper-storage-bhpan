@@ -18,10 +18,10 @@ import (
 const metadataLimit = 4 << 20
 
 // Config accepts trusted operator configuration. Credentials are supplied only
-// to Login, and are not retained by the adapter.
+// to LoginLocal, and are not retained by the adapter.
 type Config struct {
-	CloudURL          string
-	SSOURL            string
+	CloudURL string
+
 	Transport         http.RoundTripper
 	Timeout           time.Duration
 	DataOrigins       []string
@@ -29,28 +29,21 @@ type Config struct {
 }
 
 type Client struct {
-	mu         sync.RWMutex
-	cloud, sso string
-	client     *http.Client
-	transport  http.RoundTripper
-	timeout    time.Duration
-	origins    map[string]bool
-	localKey   *rsa.PublicKey
-	token      string
+	mu        sync.RWMutex
+	cloud     string
+	client    *http.Client
+	transport http.RoundTripper
+	timeout   time.Duration
+	origins   map[string]bool
+	localKey  *rsa.PublicKey
+	token     string
 }
 
 func New(cfg Config) (*Client, error) {
 	if cfg.CloudURL == "" {
 		cfg.CloudURL = "https://bhpan.buaa.edu.cn"
 	}
-	if cfg.SSOURL == "" {
-		cfg.SSOURL = "https://sso.buaa.edu.cn"
-	}
 	cloud, err := parseOrigin(cfg.CloudURL)
-	if err != nil {
-		return nil, err
-	}
-	sso, err := parseOrigin(cfg.SSOURL)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +57,7 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Client{cloud: cloud, sso: sso, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}, localKey: localKey}
+	c := &Client{cloud: cloud, timeout: cfg.Timeout, transport: cfg.Transport, origins: map[string]bool{cloud: true}, localKey: localKey}
 	for _, raw := range cfg.DataOrigins {
 		origin, err := parseOrigin(raw)
 		if err != nil {
@@ -105,22 +98,14 @@ func (c *Client) reset() {
 		if req.URL.User != nil || req.URL.Fragment != "" {
 			return ErrDestination
 		}
-		if strings.EqualFold(req.URL.Hostname(), "uc.buaa.edu.cn") && req.Method == http.MethodGet {
-			return http.ErrUseLastResponse
-		}
-		origin := originOf(req.URL)
-		if origin != c.cloud && origin != c.sso {
-			return ErrDestination
-		}
-		// Do not forward credential bodies across origins on 307/308 responses.
-		if req.Method != http.MethodGet && req.Method != http.MethodHead && len(via) > 0 && origin != originOf(via[0].URL) {
+		if originOf(req.URL) != c.cloud {
 			return ErrDestination
 		}
 		return nil
 	}}
 }
 
-// Close invalidates the entire session, including SSO and cloud cookies.
+// Close invalidates the entire session, including cloud cookies.
 func (c *Client) Close() { c.mu.Lock(); defer c.mu.Unlock(); c.reset() }
 
 func readResponseBody(ctx context.Context, op string, status int, r io.Reader) ([]byte, error) {
@@ -167,7 +152,13 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 		} else if errors.Is(e, ErrProtocol) {
 			kind = ErrProtocol
 		}
-		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: kind}
+		// net/http returns the preceding response with its body already closed
+		// when CheckRedirect rejects a hop. Keep only its HTTP status.
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		return nil, nil, nil, status, &Error{Operation: operation, Status: status, Kind: kind}
 	}
 	defer resp.Body.Close()
 	data, e := readResponseBody(ctx, operation, resp.StatusCode, resp.Body)

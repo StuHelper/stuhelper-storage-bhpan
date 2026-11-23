@@ -23,7 +23,6 @@ import (
 type Account struct {
 	Username string
 	Password string
-	Mode     string
 }
 
 type Input struct {
@@ -38,19 +37,18 @@ type Input struct {
 
 var (
 	ErrInvalidInput = errors.New("invalid stdin input")
-	ErrInvalidMode  = errors.New("invalid authentication mode")
 	ErrProbeFailed  = errors.New("probe verification failed")
 )
 
 func Run(parentCtx context.Context, cfg bhpan.Config, stdin io.Reader, stdout io.Writer) error {
 	var in Input
-	if stdin == nil || stdout == nil || json.NewDecoder(io.LimitReader(stdin, 8192)).Decode(&in) != nil || len(in.Accounts) == 0 || len(in.Accounts) > 2 {
+	if stdin == nil || stdout == nil {
 		return ErrInvalidInput
 	}
-	for _, a := range in.Accounts {
-		if a.Mode != "" && a.Mode != "sso" && a.Mode != "local" {
-			return ErrInvalidMode
-		}
+	d := json.NewDecoder(io.LimitReader(stdin, 8192))
+	d.DisallowUnknownFields()
+	if d.Decode(&in) != nil || d.Decode(new(any)) != io.EOF || len(in.Accounts) == 0 || len(in.Accounts) > 2 {
+		return ErrInvalidInput
 	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 60 * time.Second
@@ -92,11 +90,7 @@ func selectPersonalLibrary(libs []bhpan.Library) (string, error) {
 func probeAccount(ctx context.Context, cfg bhpan.Config, index int, a Account, in Input) (map[string]any, bool) {
 	c, err := bhpan.New(cfg)
 	if err == nil {
-		if a.Mode == "local" {
-			err = c.LoginLocal(ctx, a.Username, a.Password)
-		} else {
-			err = c.Login(ctx, a.Username, a.Password)
-		}
+		err = c.LoginLocal(ctx, a.Username, a.Password)
 	}
 	a = Account{}
 	result := map[string]any{"account": index, "login": err == nil}

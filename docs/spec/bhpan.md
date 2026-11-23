@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # BHpan 适配接口
@@ -12,23 +12,23 @@ updated: 2026-11-21
 
 接口路径和字段参考[旧项目协议入口](https://github.com/StuHelper/StuHelper-legacy/tree/4c6d67a2fb8184e935d0aad9e33ce5c18fea6ac3/server/internal/modules/storage/bhpan)。实现与测试重新编写，不导入旧模块、复制其源码或复用其测试夹具。
 
-本地账号登录参考供应商登录脚本中的 RSA 公钥、加密方式、CSRF 字段和登录响应。脚本地址及 SHA-256 保存在来源记录中。
+官方入口登录参考供应商登录脚本中的 RSA 公钥、加密方式、CSRF 字段和登录响应。脚本地址及 SHA-256 保存在来源记录中。
 
 本仓库依据实际观测维护供应商协议快照，覆盖适配库调用的操作。来源记录包含观测日期、参考提交和摘要。[接口快照](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.openapi.json) · [来源记录](https://github.com/StuHelper/stuhelper-storage-bhpan/blob/develop/contracts/bhpan.source.json)
 
 ## 登录与会话
 
-`Login` 明确使用北航 SSO。先取得 CAS execution 字段，提交用户名与密码，再完成云盘 OAuth challenge 和回调。登录成功要求取得云盘 token，并读取非空且每项 ID 有效的文档库列表。
-
-`LoginLocal` 明确使用云盘本地账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
+`LoginLocal` 明确使用学校统一身份认证账号。先以属性顺序无关的方式读取登录页面 `__NEXT_DATA__` 中的 challenge、CSRF 和设备信息，再用默认或服务端 `Config.LocalPublicKeyPEM` 覆盖的 RSA 公钥执行 PKCS#1 v1.5 加密，提交本地登录接口。回调完成后使用相同的文档库校验。
 
 供应商登录脚本成功时用浏览器的 `window.location.replace` 打开 `redirect`。客户端接收单斜杠开头的根相对地址和同源 HTTPS 绝对地址，保留 OAuth 查询参数及同源中间跳转。最终响应须到达云盘的 `/anyshare/oauth2/login/callback`。
 
 回调链拒绝 `//` 开头的地址、跨源目标、HTTP、用户信息、URL 片段和路径中的转义分隔符或反斜杠。目标检查失败返回 `local-callback` 操作和 `ErrDestination`，响应内容与地址不进入错误。
 
-两种方式不自动回退。失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。
+失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。
 
-遇到风险确认、图形验证码或双因素认证时返回 `ErrChallenge`，并通过 `ChallengeOf` 提供 `risk_confirm`、`captcha`、`mfa` 脱敏分类。仅当调用方通过 `LoginWithOptions` 显式传入用户风险确认授权时，才提交 CAS `continueForm` 续接；验证码与双因素始终拒绝自动提交。
+HTTP 客户端拒绝跳转时，错误保留操作名和触发跳转的响应状态码。响应地址、位置头和正文不进入错误。未收到响应时状态码为 0。
+
+遇到图形验证码或多因素验证时，登录返回 `ErrChallenge`。调用方可通过 `ChallengeOf` 读取分类，由用户完成交互。
 
 `RefreshSession` 在已登录会话上显式请求刷新接口，更新 `client.oauth2_token` 并通过文档库读取核验有效性。会话过期时清理本地状态，临时故障或权限拒绝保留原错误类别。
 
@@ -78,7 +78,6 @@ updated: 2026-11-21
 
 | 场景 | 预期结果 |
 | --- | --- |
-| BH-01 | SSO 必须完成云盘 token 与文档库验证；失败重登清除旧会话 |
 | BH-02 | 本地账号通过 CSRF 与 RSA 加密提交一次，完成同源绝对或根相对回调后可读取身份、目录和容量。无效回调目标不会收到请求 |
 | BH-03 | 交互验证、外站跳转、取消、无效或超限响应明确失败，错误不暴露敏感内容 |
 | BH-04 | 返回供应商容量原值，已用量超过分配量时剩余为零；文件操作和回收站分页遵守供应商接口 |
@@ -92,7 +91,6 @@ updated: 2026-11-21
 | BH-12 | 显式会话续期更新并核验令牌，失效时清理会话而临时故障保留原状态分类 |
 | BH-13 | 错误保留整型供应商码与 Retry-After，对象传输细分操作标识且不泄露原始文本 |
 | BH-14 | 个人文档库严格筛选 user_doc_lib，秒传与完成上传返回文档标识及修订号，分片授权公开只读元数据 |
-| BH-15 | 交互验证区分风险确认、验证码与双因素，仅在用户显式授权时续接 CAS 风险确认 |
 | BH-16 | 分享链接解析校验受信任 CloudURL 与安全标识，免密预检隔离个人会话并返回公开元信息 |
 
 场景与真实测试函数登记在 `module.json` 的 `scenario_tests`，由本仓检查验证。真实账号结果、服务端装配和部署状态见[实施状态](../development/bhpan.md)。
