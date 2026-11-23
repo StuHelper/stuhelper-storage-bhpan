@@ -1,7 +1,7 @@
 ---
 type: spec
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-23
 ---
 
 # BHpan 适配接口
@@ -27,6 +27,8 @@ updated: 2026-11-21
 回调链拒绝 `//` 开头的地址、跨源目标、HTTP、用户信息、URL 片段和路径中的转义分隔符或反斜杠。目标检查失败返回 `local-callback` 操作和 `ErrDestination`，响应内容与地址不进入错误。
 
 两种方式不自动回退。失败登录会清除之前的 token 和全部 cookie，`Close` 同样丢弃会话。库不保存密码、不重放登录请求。
+
+HTTP 客户端拒绝跳转时，错误保留操作名和触发跳转的响应状态码。响应地址、位置头和正文不进入错误。未收到响应时状态码为 0。
 
 遇到风险确认、图形验证码或双因素认证时返回 `ErrChallenge`，并通过 `ChallengeOf` 提供 `risk_confirm`、`captcha`、`mfa` 脱敏分类。仅当调用方通过 `LoginWithOptions` 显式传入用户风险确认授权时，才提交 CAS `continueForm` 续接；验证码与双因素始终拒绝自动提交。
 

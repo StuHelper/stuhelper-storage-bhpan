@@ -140,6 +140,13 @@ func TestLoginRiskAndUntrustedRedirect(t *testing.T) {
 			}
 			if kind == "redirect" {
 				expected = ErrDestination
+				var failure *Error
+				if !errors.As(err, &failure) || failure.Status != http.StatusTemporaryRedirect || failure.Operation != "login" {
+					t.Fatal("missing HTTP status or operation for the rejected redirect")
+				}
+				if strings.Contains(err.Error(), "untrusted.example") {
+					t.Fatal("redirect destination leaked into the diagnostic")
+				}
 			}
 			if err == nil {
 				t.Fatal("unexpected login success")
