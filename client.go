@@ -167,7 +167,13 @@ func request(ctx context.Context, hc *http.Client, operation, method, target, co
 		} else if errors.Is(e, ErrProtocol) {
 			kind = ErrProtocol
 		}
-		return nil, nil, nil, 0, &Error{Operation: operation, Status: 0, Kind: kind}
+		// net/http returns the preceding response with its body already closed
+		// when CheckRedirect rejects a hop. Keep only its HTTP status.
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		return nil, nil, nil, status, &Error{Operation: operation, Status: status, Kind: kind}
 	}
 	defer resp.Body.Close()
 	data, e := readResponseBody(ctx, operation, resp.StatusCode, resp.Body)
