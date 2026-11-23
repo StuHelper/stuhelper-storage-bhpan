@@ -91,10 +91,7 @@ func TestLocalLoginRedirectTargets(t *testing.T) {
 				}
 			}))
 			t.Cleanup(cloud.Close)
-
-			// Configuring a separate SSO origin ensures that local OAuth cannot
-			// follow a redirect to the other origin accepted by the SSO client.
-			c, err := New(Config{CloudURL: cloud.URL, SSOURL: other.URL, Transport: cloud.Client().Transport, Timeout: time.Second})
+			c, err := New(Config{CloudURL: cloud.URL, Transport: cloud.Client().Transport, Timeout: time.Second})
 			check(t, err)
 			t.Cleanup(c.Close)
 			err = c.LoginLocal(t.Context(), "fixture", "fixture-password")
@@ -112,6 +109,9 @@ func TestLocalLoginRedirectTargets(t *testing.T) {
 				var apiErr *Error
 				if !errors.Is(err, ErrDestination) || !errors.As(err, &apiErr) || apiErr.Operation != "local-callback" {
 					t.Fatalf("expected sanitized local destination error, got %v", err)
+				}
+				if tc.next != "" && apiErr.Status != http.StatusFound {
+					t.Fatal("missing redirect response status")
 				}
 				if callbackHits.Load() != 0 {
 					t.Fatal("rejected target reached the callback")

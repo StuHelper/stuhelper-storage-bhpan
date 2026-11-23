@@ -13,7 +13,7 @@ import (
 func main() {
 	err := probe.Run(context.Background(), bhpan.Config{}, os.Stdin, os.Stdout)
 	if err != nil {
-		if err == probe.ErrInvalidInput || err == probe.ErrInvalidMode {
+		if err == probe.ErrInvalidInput {
 			fmt.Fprintln(os.Stderr, err.Error())
 		}
 		os.Exit(1)

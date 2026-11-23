@@ -1,14 +1,14 @@
 ---
 type: design
 status: Accepted
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # 独立存储适配与业务接入
 
 ## 职责与数据归属
 
-BHpan 封装北航云盘的登录、会话、容量、文件和传输协议，维护独立 Go module、发行版本、协议快照和测试。运行请求访问云盘，选择 SSO 登录时还访问北航 SSO。campus-adapters 独立维护学校认证与教务数据接入。
+BHpan 封装北航云盘的登录、会话、容量、文件和传输协议，维护独立 Go module、发行版本、协议快照和测试。登录只访问配置的云盘 HTTPS 来源。campus-adapters 独立维护学校认证与教务数据接入。
 
 模块只依赖 Go 标准库。`module.json` 将本模块登记为 `library`，`required` 与 `optional` 为空，`adapters` 登记 `bhpan`。Node.js、pnpm 和工程工具用于开发检查。
 
